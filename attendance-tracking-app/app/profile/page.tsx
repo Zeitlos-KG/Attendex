@@ -82,7 +82,7 @@ export default function ProfilePage() {
         loadProfile()
 
         // Fetch subgroups from API
-        fetch('http://localhost:5000/api/subgroups')
+        fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/subgroups`)
             .then(res => res.json())
             .then(data => setAllSubgroups(data))
             .catch(err => console.error('Failed to fetch subgroups:', err))

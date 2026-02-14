@@ -15,9 +15,11 @@ import { getBranchDisplayName, extractBranchCode, extractPool } from "@/lib/bran
 import { createClient } from "@/lib/supabase/client"
 
 // Fetch subgroups from API
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
+
 async function getSubgroups() {
     try {
-        const res = await fetch('http://localhost:5000/api/subgroups')
+        const res = await fetch(`${API_URL}/subgroups`)
         if (res.ok) {
             return await res.json()
         }
@@ -133,10 +135,10 @@ export default function OnboardingPage() {
                 return
             }
 
-            // Update user profile with subgroup
+            // Update user profile with subgroup and year
             const { error } = await supabase
                 .from('profiles')
-                .update({ subgroup })
+                .update({ subgroup, year: parseInt(year) })
                 .eq('id', user.id)
 
             if (error) {

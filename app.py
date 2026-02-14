@@ -1,0 +1,432 @@
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+import sqlite3
+import os
+from dotenv import load_dotenv
+from db import (
+    get_db_connection, init_db, get_weight_for_type,
+    calculate_attendance_stats, calculate_subject_attendance
+)
+from upload_handler import register_upload_routes
+from auth_middleware import require_auth, optional_auth
+
+# Load environment variables from .env file
+load_dotenv()
+
+app = Flask(__name__)
+
+# CORS: Allow both localhost (dev) and production domain
+allowed_origins = [
+    "http://localhost:3000",
+    "https://attendex.vercel.app",  # Update with your actual Vercel URL
+    os.getenv("FRONTEND_URL", "http://localhost:3000")
+]
+CORS(app, origins=allowed_origins)
+
+# Initialize database on startup
+init_db()
+
+# Register upload routes
+register_upload_routes(app, get_db_connection)
+
+# ==================== API ROUTES ====================
+
+# ==================== DASHBOARD API ====================
+
+@app.route('/api/dashboard', methods=['GET'])
+def api_dashboard():
+    """Get dashboard statistics."""
+    subgroup = request.args.get('subgroup')
+    conn = get_db_connection()
+    
+    # Get total subjects
+    if subgroup:
+        total_subjects = conn.execute(
+            'SELECT COUNT(*) as count FROM subjects WHERE subgroup = ?', 
+            (subgroup,)
+        ).fetchone()['count']
+        attended_count = conn.execute(
+            "SELECT COUNT(*) as count FROM attendance a JOIN timetable t ON a.timetable_id = t.id WHERE a.status = 'Present' AND t.subgroup = ?",
+            (subgroup,)
+        ).fetchone()['count']
+    else:
+        total_subjects = conn.execute('SELECT COUNT(*) as count FROM subjects').fetchone()['count']
+        attended_count = conn.execute(
+            "SELECT COUNT(*) as count FROM attendance WHERE status = 'Present'"
+        ).fetchone()['count']
+    
+    # Get attendance stats (weighted)
+    stats = calculate_attendance_stats(subgroup)
+    
+    conn.close()
+    
+    return jsonify({
+        'total_subjects': total_subjects,
+        'total_classes': stats['total_classes'],
+        'attended_classes': attended_count,
+        'overall_percentage': stats['overall_percentage']
+    })
+
+# ==================== SUBJECTS API ====================
+
+@app.route('/api/subjects', methods=['GET'])
+def api_get_subjects():
+    """Get all subjects."""
+    subgroup = request.args.get('subgroup')
+    conn = get_db_connection()
+    
+    if subgroup:
+        subjects = conn.execute(
+            'SELECT * FROM subjects WHERE subgroup = ? ORDER BY name',
+            (subgroup,)
+        ).fetchall()
+    else:
+        subjects = conn.execute('SELECT * FROM subjects ORDER BY name').fetchall()
+        
+    conn.close()
+    
+    return jsonify([dict(row) for row in subjects])
+
+@app.route('/api/subjects', methods=['POST'])
+def api_create_subject():
+    """Create a new subject."""
+    data = request.get_json()
+    
+    if not data or 'name' not in data:
+        return jsonify({'error': 'Subject name is required'}), 400
+    
+    name = data['name'].strip()
+    code = data.get('code', '').strip()
+    
+    if not name:
+        return jsonify({'error': 'Subject name cannot be empty'}), 400
+    
+    try:
+        conn = get_db_connection()
+        cursor = conn.execute('INSERT INTO subjects (name, code) VALUES (?, ?)', (name, code))
+        conn.commit()
+        subject_id = cursor.lastrowid
+        conn.close()
+        
+        return jsonify({'id': subject_id, 'name': name, 'code': code}), 201
+    except sqlite3.IntegrityError:
+        return jsonify({'error': 'Subject with this name already exists'}), 409
+
+@app.route('/api/subjects/<int:subject_id>', methods=['PUT'])
+def api_update_subject(subject_id):
+    """Update an existing subject."""
+    data = request.get_json()
+    
+    if not data or 'name' not in data:
+        return jsonify({'error': 'Subject name is required'}), 400
+    
+    name = data['name'].strip()
+    code = data.get('code', '').strip()
+    
+    if not name:
+        return jsonify({'error': 'Subject name cannot be empty'}), 400
+    
+    try:
+        conn = get_db_connection()
+        conn.execute('UPDATE subjects SET name = ?, code = ? WHERE id = ?', (name, code, subject_id))
+        conn.commit()
+        
+        if conn.total_changes == 0:
+            conn.close()
+            return jsonify({'error': 'Subject not found'}), 404
+        
+        conn.close()
+        return jsonify({'id': subject_id, 'name': name, 'code': code})
+    except sqlite3.IntegrityError:
+        return jsonify({'error': 'Subject with this name already exists'}), 409
+
+@app.route('/api/subjects/<int:subject_id>', methods=['DELETE'])
+def api_delete_subject(subject_id):
+    """Delete a subject and all related timetable/attendance records."""
+    conn = get_db_connection()
+    conn.execute('DELETE FROM subjects WHERE id = ?', (subject_id,))
+    conn.commit()
+    
+    if conn.total_changes == 0:
+        conn.close()
+        return jsonify({'error': 'Subject not found'}), 404
+    
+    conn.close()
+    return jsonify({'message': 'Subject deleted successfully'})
+
+# ==================== SUBGROUPS API ====================
+
+@app.route('/api/subgroups', methods=['GET'])
+def api_get_subgroups():
+    """Get all unique subgroups (only UG: years 1-4)."""
+    conn = get_db_connection()
+    subgroups = conn.execute('''
+        SELECT DISTINCT subgroup 
+        FROM subjects 
+        WHERE subgroup IS NOT NULL AND year <= 4
+        ORDER BY subgroup
+    ''').fetchall()
+    conn.close()
+    
+    return jsonify([row['subgroup'] for row in subgroups])
+
+# ==================== TIMETABLE API ====================
+
+@app.route('/api/timetable', methods=['GET'])
+def api_get_timetable():
+    """Get timetable entries, optionally filtered by subgroup."""
+    subgroup = request.args.get('subgroup')
+    
+    conn = get_db_connection()
+    
+    if subgroup:
+        query = '''
+            SELECT t.*, s.name as subject_name, s.code as subject_code
+            FROM timetable t
+            JOIN subjects s ON t.subject_id = s.id
+            WHERE t.subgroup = ?
+            ORDER BY t.day_of_week, t.start_time
+        '''
+        entries = conn.execute(query, (subgroup,)).fetchall()
+    else:
+        query = '''
+            SELECT t.*, s.name as subject_name, s.code as subject_code
+            FROM timetable t
+            JOIN subjects s ON t.subject_id = s.id
+            ORDER BY t.day_of_week, t.start_time
+        '''
+        entries = conn.execute(query).fetchall()
+    
+    conn.close()
+    
+    return jsonify([dict(row) for row in entries])
+
+@app.route('/api/timetable', methods=['POST'])
+def api_create_timetable_entry():
+    """Create a new timetable entry."""
+    data = request.get_json()
+    
+    required_fields = ['subject_id', 'day_of_week', 'start_time', 'end_time', 'type']
+    for field in required_fields:
+        if field not in data:
+            return jsonify({'error': f'{field} is required'}), 400
+    
+    subject_id = data['subject_id']
+    day_of_week = data['day_of_week']
+    start_time = data['start_time']
+    end_time = data['end_time']
+    class_type = data['type']
+    
+    # Validate day_of_week
+    if not (0 <= day_of_week <= 6):
+        return jsonify({'error': 'day_of_week must be between 0 (Monday) and 6 (Sunday)'}), 400
+    
+    # Validate type
+    if class_type not in ['Class', 'Tutorial', 'Lab']:
+        return jsonify({'error': 'type must be Class, Tutorial, or Lab'}), 400
+    
+    try:
+        conn = get_db_connection()
+        cursor = conn.execute(
+            'INSERT INTO timetable (subject_id, day_of_week, start_time, end_time, type) VALUES (?, ?, ?, ?, ?)',
+            (subject_id, day_of_week, start_time, end_time, class_type)
+        )
+        conn.commit()
+        entry_id = cursor.lastrowid
+        conn.close()
+        
+        return jsonify({
+            'id': entry_id,
+            'subject_id': subject_id,
+            'day_of_week': day_of_week,
+            'start_time': start_time,
+            'end_time': end_time,
+            'type': class_type
+        }), 201
+    except sqlite3.IntegrityError as e:
+        return jsonify({'error': 'Invalid subject_id or constraint violation'}), 400
+
+@app.route('/api/timetable/<int:entry_id>', methods=['PUT'])
+def api_update_timetable_entry(entry_id):
+    """Update an existing timetable entry."""
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+    
+    # Build update query dynamically
+    allowed_fields = ['subject_id', 'day_of_week', 'start_time', 'end_time', 'type']
+    updates = []
+    values = []
+    
+    for field in allowed_fields:
+        if field in data:
+            updates.append(f'{field} = ?')
+            values.append(data[field])
+    
+    if not updates:
+        return jsonify({'error': 'No valid fields to update'}), 400
+    
+    values.append(entry_id)
+    
+    try:
+        conn = get_db_connection()
+        conn.execute(f'UPDATE timetable SET {", ".join(updates)} WHERE id = ?', values)
+        conn.commit()
+        
+        if conn.total_changes == 0:
+            conn.close()
+            return jsonify({'error': 'Timetable entry not found'}), 404
+        
+        conn.close()
+        return jsonify({'message': 'Timetable entry updated successfully'})
+    except sqlite3.IntegrityError:
+        return jsonify({'error': 'Invalid data or constraint violation'}), 400
+
+@app.route('/api/timetable/<int:entry_id>', methods=['DELETE'])
+def api_delete_timetable_entry(entry_id):
+    """Delete a timetable entry and all related attendance records."""
+    conn = get_db_connection()
+    conn.execute('DELETE FROM timetable WHERE id = ?', (entry_id,))
+    conn.commit()
+    
+    if conn.total_changes == 0:
+        conn.close()
+        return jsonify({'error': 'Timetable entry not found'}), 404
+    
+    conn.close()
+    return jsonify({'message': 'Timetable entry deleted successfully'})
+
+# ==================== ATTENDANCE API ====================
+
+@app.route('/api/attendance', methods=['POST'])
+@optional_auth  # Auth optional for now - switch to @require_auth after setting SUPABASE_JWT_SECRET
+def api_mark_attendance():
+    """Mark attendance for a specific timetable entry on a specific date."""
+    data = request.get_json()
+    
+    required_fields = ['timetable_id', 'date', 'status']
+    for field in required_fields:
+        if field not in data:
+            return jsonify({'error': f'{field} is required'}), 400
+    
+    timetable_id = data['timetable_id']
+    date = data['date']
+    status = data['status']
+    
+    if status not in ['Present', 'Absent']:
+        return jsonify({'error': 'status must be Present or Absent'}), 400
+    
+    try:
+        conn = get_db_connection()
+        
+        # Check if attendance already exists
+        existing = conn.execute(
+            'SELECT id FROM attendance WHERE timetable_id = ? AND date = ?',
+            (timetable_id, date)
+        ).fetchone()
+        
+        if existing:
+            # Update existing record
+            conn.execute(
+                'UPDATE attendance SET status = ?, marked_at = CURRENT_TIMESTAMP WHERE id = ?',
+                (status, existing['id'])
+            )
+            attendance_id = existing['id']
+        else:
+            # Insert new record
+            cursor = conn.execute(
+                'INSERT INTO attendance (timetable_id, date, status) VALUES (?, ?, ?)',
+                (timetable_id, date, status)
+            )
+            attendance_id = cursor.lastrowid
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'id': attendance_id,
+            'timetable_id': timetable_id,
+            'date': date,
+            'status': status
+        }), 201
+    except sqlite3.IntegrityError:
+        return jsonify({'error': 'Invalid timetable_id'}), 400
+
+
+@app.route('/api/attendance/history', methods=['GET'])
+def api_get_attendance_history():
+    """Get all attendance records with timetable and subject details."""
+    conn = get_db_connection()
+    query = '''
+        SELECT a.*, t.type, t.day_of_week, t.start_time, t.end_time,
+               s.name as subject_name, s.code as subject_code
+        FROM attendance a
+        JOIN timetable t ON a.timetable_id = t.id
+        JOIN subjects s ON t.subject_id = s.id
+        ORDER BY a.date DESC, t.start_time
+    '''
+    records = conn.execute(query).fetchall()
+    conn.close()
+    
+    return jsonify([dict(row) for row in records])
+
+@app.route('/api/attendance/delete', methods=['POST'])
+@optional_auth  # Auth optional for now - switch to @require_auth after setting SUPABASE_JWT_SECRET
+def api_unmark_attendance():
+    """Delete an attendance record for a specific timetable entry and date."""
+    data = request.get_json()
+    
+    required_fields = ['timetable_id', 'date']
+    for field in required_fields:
+        if field not in data:
+            return jsonify({'error': f'{field} is required'}), 400
+    
+    timetable_id = data['timetable_id']
+    date = data['date']
+    
+    conn = get_db_connection()
+    conn.execute(
+        'DELETE FROM attendance WHERE timetable_id = ? AND date = ?',
+        (timetable_id, date)
+    )
+    conn.commit()
+    
+    if conn.total_changes == 0:
+        conn.close()
+        return jsonify({'error': 'Attendance record not found'}), 404
+    
+    conn.close()
+    return jsonify({'message': 'Attendance deleted successfully'})
+
+@app.route('/api/attendance/subject/<int:subject_id>', methods=['GET'])
+def api_get_subject_attendance_stats(subject_id):
+    """Get attendance statistics for a specific subject."""
+    stats = calculate_subject_attendance(subject_id)
+    return jsonify(stats)
+
+@app.route('/api/attendance/<int:attendance_id>', methods=['DELETE'])
+def api_delete_attendance(attendance_id):
+    """Delete an attendance record."""
+    conn = get_db_connection()
+    conn.execute('DELETE FROM attendance WHERE id = ?', (attendance_id,))
+    conn.commit()
+    
+    if conn.total_changes == 0:
+        conn.close()
+        return jsonify({'error': 'Attendance record not found'}), 404
+    
+    conn.close()
+    return jsonify({'message': 'Attendance record deleted successfully'})
+
+# ==================== HEALTH CHECK ====================
+
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    """Health check endpoint."""
+    return jsonify({'status': 'healthy', 'message': 'Attendex API is running'})
+
+# ==================== RUN ====================
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)

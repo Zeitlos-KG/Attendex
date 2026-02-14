@@ -1,0 +1,243 @@
+"use client"
+
+import { Navbar } from "@/components/navbar"
+import { StatsCard } from "@/components/stats-card"
+import { BookOpen, GraduationCap, Clock, CheckCircle2, Calendar, TrendingUp } from "lucide-react"
+import Link from "next/link"
+
+// Sample data
+const stats = [
+  {
+    title: "Total Subjects",
+    value: 6,
+    subtitle: "Current semester",
+    icon: BookOpen,
+    variant: "default" as const,
+  },
+  {
+    title: "Overall Attendance",
+    value: "78%",
+    subtitle: "Above threshold",
+    icon: GraduationCap,
+    trend: { value: 2.5, isPositive: true },
+    variant: "success" as const,
+  },
+  {
+    title: "Total Classes",
+    value: 156,
+    subtitle: "This semester",
+    icon: Clock,
+    variant: "default" as const,
+  },
+  {
+    title: "Classes Attended",
+    value: 122,
+    subtitle: "34 missed",
+    icon: CheckCircle2,
+    variant: "success" as const,
+  },
+]
+
+const upcomingClasses = [
+  {
+    subject: "Data Structures",
+    time: "09:00 - 10:00",
+    type: "Lecture",
+    room: "LT-201",
+  },
+  {
+    subject: "Computer Networks",
+    time: "10:00 - 11:00",
+    type: "Tutorial",
+    room: "CR-105",
+  },
+  {
+    subject: "Database Systems",
+    time: "11:30 - 01:00",
+    type: "Lab",
+    room: "Lab-301",
+  },
+]
+
+const recentActivity = [
+  { subject: "Data Structures", date: "Today", status: "present" },
+  { subject: "Computer Networks", date: "Today", status: "present" },
+  { subject: "Database Systems", date: "Yesterday", status: "absent" },
+  { subject: "Operating Systems", date: "Yesterday", status: "present" },
+]
+
+const subjectAttendance = [
+  { name: "Data Structures", attendance: 85, classes: 24 },
+  { name: "Computer Networks", attendance: 72, classes: 22 },
+  { name: "Database Systems", attendance: 78, classes: 26 },
+  { name: "Operating Systems", attendance: 80, classes: 25 },
+  { name: "Software Engineering", attendance: 68, classes: 20 },
+  { name: "Computer Architecture", attendance: 82, classes: 21 },
+]
+
+function getAttendanceColor(percentage: number) {
+  if (percentage >= 75) return "bg-success"
+  if (percentage >= 65) return "bg-warning"
+  return "bg-destructive"
+}
+
+function getAttendanceTextColor(percentage: number) {
+  if (percentage >= 75) return "text-success"
+  if (percentage >= 65) return "text-warning"
+  return "text-destructive"
+}
+
+export default function DashboardPage() {
+  return (
+    <div className="min-h-screen bg-background">
+      <Navbar />
+
+      <main className="pt-20 pb-12 px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl space-y-8">
+          {/* Header */}
+          <div className="space-y-2">
+            <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
+            <p className="text-muted-foreground">
+              Welcome back! Here is your attendance overview.
+            </p>
+          </div>
+
+          {/* Stats Grid */}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {stats.map((stat, index) => (
+              <div
+                key={index}
+                className="animate-in fade-in slide-in-from-bottom-4"
+                style={{ animationDelay: `${index * 100}ms`, animationFillMode: "both" }}
+              >
+                <StatsCard {...stat} />
+              </div>
+            ))}
+          </div>
+
+          {/* Main Content Grid */}
+          <div className="grid gap-6 lg:grid-cols-3">
+            {/* Subject Attendance */}
+            <div className="lg:col-span-2 rounded-xl border border-border/50 bg-card/50 backdrop-blur-sm p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-lg font-semibold text-foreground">Subject-wise Attendance</h2>
+                <Link
+                  href="/analytics"
+                  className="text-sm text-primary hover:text-primary/80 transition-colors flex items-center gap-1"
+                >
+                  View all
+                  <TrendingUp className="h-4 w-4" />
+                </Link>
+              </div>
+
+              <div className="space-y-4">
+                {subjectAttendance.map((subject, index) => (
+                  <div
+                    key={index}
+                    className="animate-in fade-in slide-in-from-left-4"
+                    style={{ animationDelay: `${index * 50}ms`, animationFillMode: "both" }}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-foreground">{subject.name}</span>
+                      <span className={`text-sm font-semibold ${getAttendanceTextColor(subject.attendance)}`}>
+                        {subject.attendance}%
+                      </span>
+                    </div>
+                    <div className="h-2 rounded-full bg-secondary overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${getAttendanceColor(subject.attendance)}`}
+                        style={{ width: `${subject.attendance}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">{subject.classes} classes total</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Sidebar */}
+            <div className="space-y-6">
+              {/* Today's Classes */}
+              <div className="rounded-xl border border-border/50 bg-card/50 backdrop-blur-sm p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Calendar className="h-5 w-5 text-primary" />
+                  <h2 className="text-lg font-semibold text-foreground">{"Today's Classes"}</h2>
+                </div>
+
+                <div className="space-y-3">
+                  {upcomingClasses.map((cls, index) => (
+                    <div
+                      key={index}
+                      className="p-3 rounded-lg bg-secondary/30 border border-border/30 hover:border-primary/30 transition-colors"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="font-medium text-foreground text-sm">{cls.subject}</p>
+                          <p className="text-xs text-muted-foreground mt-1">{cls.time}</p>
+                        </div>
+                        <span
+                          className={`text-xs px-2 py-1 rounded-full ${
+                            cls.type === "Lecture"
+                              ? "bg-primary/10 text-primary"
+                              : cls.type === "Tutorial"
+                              ? "bg-success/10 text-success"
+                              : "bg-warning/10 text-warning"
+                          }`}
+                        >
+                          {cls.type}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-2">{cls.room}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <Link
+                  href="/timetable"
+                  className="block mt-4 text-center text-sm text-primary hover:text-primary/80 transition-colors"
+                >
+                  View full timetable
+                </Link>
+              </div>
+
+              {/* Recent Activity */}
+              <div className="rounded-xl border border-border/50 bg-card/50 backdrop-blur-sm p-6">
+                <h2 className="text-lg font-semibold text-foreground mb-4">Recent Activity</h2>
+
+                <div className="space-y-3">
+                  {recentActivity.map((activity, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between py-2 border-b border-border/30 last:border-0"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-foreground">{activity.subject}</p>
+                        <p className="text-xs text-muted-foreground">{activity.date}</p>
+                      </div>
+                      <span
+                        className={`text-xs font-medium px-2 py-1 rounded-full ${
+                          activity.status === "present"
+                            ? "bg-success/10 text-success"
+                            : "bg-destructive/10 text-destructive"
+                        }`}
+                      >
+                        {activity.status === "present" ? "Present" : "Absent"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                <Link
+                  href="/mark-attendance"
+                  className="block mt-4 text-center text-sm text-primary hover:text-primary/80 transition-colors"
+                >
+                  Mark attendance
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  )
+}

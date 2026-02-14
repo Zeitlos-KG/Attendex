@@ -18,7 +18,8 @@ app = Flask(__name__)
 # CORS: Allow both localhost (dev) and production domain
 allowed_origins = [
     "http://localhost:3000",
-    "https://attendex.vercel.app",  # Update with your actual Vercel URL
+    "https://attendex-tiet.vercel.app",
+    "https://attendex-api.onrender.com",  # Render backend URL
     os.getenv("FRONTEND_URL", "http://localhost:3000")
 ]
 CORS(app, origins=allowed_origins)

@@ -12,6 +12,12 @@ from db import (
 from upload_handler import register_upload_routes
 from auth_middleware import require_auth, optional_auth
 
+# Optional psycopg2 for Postgres error handling
+try:
+    import psycopg2
+except ImportError:
+    psycopg2 = None
+
 # Load environment variables from .env file
 load_dotenv()
 
@@ -49,9 +55,9 @@ register_upload_routes(app, get_db_connection)
 # ==================== DASHBOARD API ====================
 
 @app.route('/api/dashboard', methods=['GET'])
-@require_auth
+@optional_auth
 def api_dashboard():
-    """Get dashboard statistics for the logged-in user."""
+    """Get dashboard statistics. Auth is optional — uses user_id if available."""
     user_id = getattr(request, 'user_id', None)
     subgroup = request.args.get('subgroup')
     conn = get_db_connection()
@@ -350,12 +356,10 @@ def api_delete_timetable_entry(entry_id):
 # ==================== ATTENDANCE API ====================
 
 @app.route('/api/attendance', methods=['POST'])
-@require_auth
+@optional_auth
 def api_mark_attendance():
     """Mark attendance for a specific timetable entry on a specific date."""
-    user_id = getattr(request, 'user_id', None)
-    if not user_id:
-        return jsonify({'error': 'Authentication required'}), 401
+    user_id = getattr(request, 'user_id', None) or 'anonymous'
         
     data = request.get_json()
     
@@ -416,10 +420,10 @@ def api_mark_attendance():
 
 
 @app.route('/api/attendance/history', methods=['GET'])
-@require_auth
+@optional_auth
 def api_get_attendance_history():
-    """Get all attendance records for the logged-in user."""
-    user_id = getattr(request, 'user_id', None)
+    """Get all attendance records for the current user."""
+    user_id = getattr(request, 'user_id', None) or 'anonymous'
     conn = get_db_connection()
     query = '''
         SELECT a.*, t.type, t.day_of_week, t.start_time, t.end_time,
@@ -436,10 +440,10 @@ def api_get_attendance_history():
     return jsonify([dict(row) for row in records])
 
 @app.route('/api/attendance/delete', methods=['POST'])
-@require_auth
+@optional_auth
 def api_unmark_attendance():
     """Delete an attendance record for a specific timetable entry and date."""
-    user_id = getattr(request, 'user_id', None)
+    user_id = getattr(request, 'user_id', None) or 'anonymous'
     data = request.get_json()
     
     required_fields = ['timetable_id', 'date']
@@ -468,7 +472,7 @@ def api_unmark_attendance():
     return jsonify({'message': 'Attendance deleted successfully'})
 
 @app.route('/api/attendance/subject/<int:subject_id>', methods=['GET'])
-@require_auth
+@optional_auth
 def api_get_subject_attendance_stats(subject_id):
     """Get attendance statistics for a specific subject."""
     user_id = getattr(request, 'user_id', None)

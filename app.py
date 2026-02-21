@@ -26,8 +26,11 @@ allowed_origins = [
 ]
 CORS(app, origins=allowed_origins)
 
-# Initialize database schema on startup
-init_db()
+# Initialize database schema on startup (non-fatal)
+try:
+    init_db()
+except Exception as e:
+    print(f"⚠️  init_db failed (non-fatal): {e}")
 
 # Seed all subgroup timetables on every startup
 # This ensures the DB is ALWAYS populated even after Render wipes the filesystem

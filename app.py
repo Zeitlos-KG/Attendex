@@ -125,11 +125,14 @@ def api_create_subject():
     
     try:
         conn = get_db_connection()
-        cur = execute_query(conn, 'INSERT INTO subjects (name, code) VALUES (?, ?)', (name, code))
+        execute_query(conn, 'INSERT INTO subjects (name, code) VALUES (?, ?)', (name, code))
         conn.commit()
-        subject_id = cur.lastrowid if hasattr(cur, 'lastrowid') else None
-        conn.close()
         
+        # Robust ID retrieval
+        res = execute_query(conn, 'SELECT id FROM subjects WHERE name = ? AND code = ? ORDER BY id DESC LIMIT 1', (name, code))
+        subject_id = res[0]['id']
+        
+        conn.close()
         return jsonify({'id': subject_id, 'name': name, 'code': code}), 201
     except (sqlite3.IntegrityError, psycopg2.IntegrityError):
         return jsonify({'error': 'Subject with this name already exists'}), 409
@@ -252,12 +255,19 @@ def api_create_timetable_entry():
     
     try:
         conn = get_db_connection()
-        cur = execute_query(conn,
+        execute_query(conn,
             'INSERT INTO timetable (subject_id, day_of_week, start_time, end_time, type) VALUES (?, ?, ?, ?, ?)',
             (subject_id, day_of_week, start_time, end_time, class_type)
         )
         conn.commit()
-        entry_id = cur.lastrowid if hasattr(cur, 'lastrowid') else None
+        
+        # Robust ID retrieval
+        res = execute_query(conn, 
+            'SELECT id FROM timetable WHERE subject_id = ? AND day_of_week = ? AND start_time = ? AND type = ? ORDER BY id DESC LIMIT 1',
+            (subject_id, day_of_week, start_time, class_type)
+        )
+        entry_id = res[0]['id']
+        
         conn.close()
         
         return jsonify({
@@ -369,13 +379,19 @@ def api_mark_attendance():
             attendance_id = existing['id']
         else:
             # Insert new record with user_id
-            cur = execute_query(conn,
+            execute_query(conn,
                 'INSERT INTO attendance (timetable_id, date, status, user_id) VALUES (?, ?, ?, ?)',
                 (timetable_id, date, status, user_id)
             )
-            attendance_id = cur.lastrowid if hasattr(cur, 'lastrowid') else None
+            conn.commit()
+            
+            # Robust ID retrieval
+            res = execute_query(conn, 
+                'SELECT id FROM attendance WHERE timetable_id = ? AND date = ? AND user_id = ?',
+                (timetable_id, date, user_id)
+            )
+            attendance_id = res[0]['id']
         
-        conn.commit()
         conn.close()
         
         return jsonify({

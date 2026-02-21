@@ -20,7 +20,8 @@ def run():
     init_db()
 
     FOLDER   = os.path.dirname(os.path.abspath(__file__))
-    tt_files = sorted(glob.glob(os.path.join(FOLDER, "TT_*.py")))
+    # Recursively find all TT_*.py files (in subfolders like 1A/, 1B/, etc. too)
+    tt_files = sorted(glob.glob(os.path.join(FOLDER, "**", "TT_*.py"), recursive=True))
 
     if not tt_files:
         print("   No TT_*.py files found — nothing to seed.")

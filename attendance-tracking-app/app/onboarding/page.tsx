@@ -14,8 +14,12 @@ import { GraduationCap, Users, Building2 } from "lucide-react"
 import { getBranchDisplayName, extractBranchCode, extractPool } from "@/lib/branch-utils"
 import { createClient } from "@/lib/supabase/client"
 
-// Fetch subgroups from API
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
+// Normalize API URL: strip trailing slash, ensure it ends with /api
+function buildApiUrl(raw: string): string {
+    const trimmed = raw.replace(/\/+$/, '')
+    return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`
+}
+const API_URL = buildApiUrl(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api')
 
 async function getSubgroups() {
     try {

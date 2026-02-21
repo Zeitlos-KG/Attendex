@@ -82,7 +82,12 @@ export default function ProfilePage() {
         loadProfile()
 
         // Fetch subgroups from API
-        fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/subgroups`)
+        const buildApiUrl = (raw: string) => {
+            const trimmed = raw.replace(/\/+$/, '')
+            return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`
+        }
+        const apiUrl = buildApiUrl(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api')
+        fetch(`${apiUrl}/subgroups`)
             .then(res => res.json())
             .then(data => setAllSubgroups(data))
             .catch(err => console.error('Failed to fetch subgroups:', err))

@@ -1,4 +1,9 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+// Normalize API URL: strip trailing slash, ensure it ends with /api
+function buildApiUrl(raw: string): string {
+  const trimmed = raw.replace(/\/+$/, '') // remove trailing slashes
+  return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`
+}
+const API_URL = buildApiUrl(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api');
 
 export interface DashboardStats {
   total_subjects: number;

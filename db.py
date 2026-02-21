@@ -34,15 +34,15 @@ def execute_query(conn, query, params=None):
         # Postgres uses %s
         query = query.replace('?', '%s')
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute(query, params)
-        
-        # If it's a SELECT, return results
-        if cur.description:
-            try:
+        try:
+            cur.execute(query, params)
+            # If it's a SELECT, return results
+            if cur.description:
                 return cur.fetchall()
-            except psycopg2.ProgrammingError:
-                return cur
-        return cur
+            return cur
+        except Exception:
+            if conn: conn.rollback()
+            raise
     else:
         # SQLite uses ?
         cur = conn.execute(query, params)

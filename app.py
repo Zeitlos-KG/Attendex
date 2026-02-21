@@ -54,31 +54,39 @@ def api_dashboard():
     conn = get_db_connection()
     
     # Get total subjects for this subgroup
-    if subgroup:
-        subjects_row = execute_query(conn, 
-            'SELECT COUNT(*) as count FROM subjects WHERE subgroup = ?', 
-            (subgroup,)
-        )
-        total_subjects = subjects_row[0]['count']
-        
-        # Get count of PRESENT classes for THIS USER in this subgroup
-        attended_row = execute_query(conn,
-            "SELECT COUNT(*) as count FROM attendance a JOIN timetable t ON a.timetable_id = t.id WHERE a.status = 'Present' AND t.subgroup = ? AND a.user_id = ?",
-            (subgroup, user_id)
-        )
-        attended_count = attended_row[0]['count']
-    else:
-        subjects_row = execute_query(conn, 'SELECT COUNT(*) as count FROM subjects')
-        total_subjects = subjects_row[0]['count']
-        
-        attended_row = execute_query(conn,
-            "SELECT COUNT(*) as count FROM attendance WHERE status = 'Present' AND user_id = ?",
-            (user_id,)
-        )
-        attended_count = attended_row[0]['count']
+    try:
+        if subgroup:
+            subjects_row = execute_query(conn, 
+                'SELECT COUNT(*) as count FROM subjects WHERE subgroup = ?', 
+                (subgroup,)
+            )
+            total_subjects = subjects_row[0]['count'] if subjects_row else 0
+            
+            attended_row = execute_query(conn,
+                "SELECT COUNT(*) as count FROM attendance a JOIN timetable t ON a.timetable_id = t.id WHERE a.status = 'Present' AND t.subgroup = ? AND a.user_id = ?",
+                (subgroup, user_id)
+            )
+            attended_count = attended_row[0]['count'] if attended_row else 0
+        else:
+            subjects_row = execute_query(conn, 'SELECT COUNT(*) as count FROM subjects')
+            total_subjects = subjects_row[0]['count'] if subjects_row else 0
+            
+            attended_row = execute_query(conn,
+                "SELECT COUNT(*) as count FROM attendance WHERE status = 'Present' AND user_id = ?",
+                (user_id,)
+            )
+            attended_count = attended_row[0]['count'] if attended_row else 0
+    except Exception as e:
+        print(f"Error fetching dashboard counts: {e}")
+        total_subjects = 0
+        attended_count = 0
     
     # Get attendance stats (weighted) for THIS USER
-    stats = calculate_attendance_stats(subgroup, user_id=user_id)
+    try:
+        stats = calculate_attendance_stats(subgroup, user_id=user_id)
+    except Exception as e:
+        print(f"Error calculating stats: {e}")
+        stats = {'total_classes': 0, 'overall_percentage': 0}
     
     conn.close()
     

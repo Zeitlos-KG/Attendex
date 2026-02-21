@@ -30,7 +30,10 @@ def run():
     seeded = []
 
     for filepath in tt_files:
-        spec = importlib.util.spec_from_file_location("tt_module", filepath)
+        filename = os.path.basename(filepath)
+        module_name = f"tt_{filename.replace('.', '_')}" # e.g. tt_TT_1A11_py
+        
+        spec = importlib.util.spec_from_file_location(module_name, filepath)
         mod  = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
 
@@ -42,6 +45,7 @@ def run():
         conn = get_db_connection()
         c    = conn.cursor()
 
+        # Clear existing data for this subgroup
         c.execute("DELETE FROM attendance WHERE timetable_id IN (SELECT id FROM timetable WHERE subgroup=?)", (subgroup,))
         c.execute("DELETE FROM timetable  WHERE subgroup=?", (subgroup,))
         c.execute("DELETE FROM subjects   WHERE subgroup=?", (subgroup,))
@@ -69,10 +73,11 @@ def run():
         conn.commit()
         conn.close()
 
-        print(f"   ✅ {subgroup} — {len(subjects)} subjects, {len(timetable)} slots")
+        print(f"   ✅ {subgroup:8s} | {len(subjects)} subjects | {len(timetable)} slots")
         seeded.append(subgroup)
 
-    print(f"🌱 Done! Active subgroups: {', '.join(seeded)}\n")
+    print(f"\n🌱 SEEDING COMPLETE: {len(seeded)} subgroups are now available.")
+    print(f"Active list: {', '.join(seeded[:10])} ... (total {len(seeded)})")
 
 
 if __name__ == "__main__":

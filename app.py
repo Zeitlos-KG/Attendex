@@ -213,6 +213,7 @@ def api_get_timetable():
     return jsonify([dict(row) for row in entries])
 
 @app.route('/api/timetable', methods=['POST'])
+@require_auth
 def api_create_timetable_entry():
     """Create a new timetable entry."""
     data = request.get_json()
@@ -258,6 +259,7 @@ def api_create_timetable_entry():
         return jsonify({'error': 'Invalid subject_id or constraint violation'}), 400
 
 @app.route('/api/timetable/<int:entry_id>', methods=['PUT'])
+@require_auth
 def api_update_timetable_entry(entry_id):
     """Update an existing timetable entry."""
     data = request.get_json()
@@ -295,6 +297,7 @@ def api_update_timetable_entry(entry_id):
         return jsonify({'error': 'Invalid data or constraint violation'}), 400
 
 @app.route('/api/timetable/<int:entry_id>', methods=['DELETE'])
+@require_auth
 def api_delete_timetable_entry(entry_id):
     """Delete a timetable entry and all related attendance records."""
     conn = get_db_connection()
@@ -311,9 +314,13 @@ def api_delete_timetable_entry(entry_id):
 # ==================== ATTENDANCE API ====================
 
 @app.route('/api/attendance', methods=['POST'])
-@optional_auth  # Auth optional for now - switch to @require_auth after setting SUPABASE_JWT_SECRET
+@require_auth
 def api_mark_attendance():
     """Mark attendance for a specific timetable entry on a specific date."""
+    user_id = getattr(request, 'user_id', None)
+    if not user_id:
+        return jsonify({'error': 'Authentication required'}), 401
+        
     data = request.get_json()
     
     required_fields = ['timetable_id', 'date', 'status']
@@ -331,10 +338,10 @@ def api_mark_attendance():
     try:
         conn = get_db_connection()
         
-        # Check if attendance already exists
+        # Check if attendance already exists for THIS user
         existing = conn.execute(
-            'SELECT id FROM attendance WHERE timetable_id = ? AND date = ?',
-            (timetable_id, date)
+            'SELECT id FROM attendance WHERE timetable_id = ? AND date = ? AND user_id = ?',
+            (timetable_id, date, user_id)
         ).fetchone()
         
         if existing:
@@ -345,10 +352,10 @@ def api_mark_attendance():
             )
             attendance_id = existing['id']
         else:
-            # Insert new record
+            # Insert new record with user_id
             cursor = conn.execute(
-                'INSERT INTO attendance (timetable_id, date, status) VALUES (?, ?, ?)',
-                (timetable_id, date, status)
+                'INSERT INTO attendance (timetable_id, date, status, user_id) VALUES (?, ?, ?, ?)',
+                (timetable_id, date, status, user_id)
             )
             attendance_id = cursor.lastrowid
         
@@ -366,8 +373,10 @@ def api_mark_attendance():
 
 
 @app.route('/api/attendance/history', methods=['GET'])
+@require_auth
 def api_get_attendance_history():
-    """Get all attendance records with timetable and subject details."""
+    """Get all attendance records for the logged-in user."""
+    user_id = getattr(request, 'user_id', None)
     conn = get_db_connection()
     query = '''
         SELECT a.*, t.type, t.day_of_week, t.start_time, t.end_time,
@@ -375,17 +384,19 @@ def api_get_attendance_history():
         FROM attendance a
         JOIN timetable t ON a.timetable_id = t.id
         JOIN subjects s ON t.subject_id = s.id
+        WHERE a.user_id = ?
         ORDER BY a.date DESC, t.start_time
     '''
-    records = conn.execute(query).fetchall()
+    records = conn.execute(query, (user_id,)).fetchall()
     conn.close()
     
     return jsonify([dict(row) for row in records])
 
 @app.route('/api/attendance/delete', methods=['POST'])
-@optional_auth  # Auth optional for now - switch to @require_auth after setting SUPABASE_JWT_SECRET
+@require_auth
 def api_unmark_attendance():
     """Delete an attendance record for a specific timetable entry and date."""
+    user_id = getattr(request, 'user_id', None)
     data = request.get_json()
     
     required_fields = ['timetable_id', 'date']
@@ -398,8 +409,8 @@ def api_unmark_attendance():
     
     conn = get_db_connection()
     conn.execute(
-        'DELETE FROM attendance WHERE timetable_id = ? AND date = ?',
-        (timetable_id, date)
+        'DELETE FROM attendance WHERE timetable_id = ? AND date = ? AND user_id = ?',
+        (timetable_id, date, user_id)
     )
     conn.commit()
     
@@ -417,10 +428,12 @@ def api_get_subject_attendance_stats(subject_id):
     return jsonify(stats)
 
 @app.route('/api/attendance/<int:attendance_id>', methods=['DELETE'])
+@require_auth
 def api_delete_attendance(attendance_id):
-    """Delete an attendance record."""
+    """Delete an attendance record (must belong to user)."""
+    user_id = getattr(request, 'user_id', None)
     conn = get_db_connection()
-    conn.execute('DELETE FROM attendance WHERE id = ?', (attendance_id,))
+    conn.execute('DELETE FROM attendance WHERE id = ? AND user_id = ?', (attendance_id, user_id))
     conn.commit()
     
     if conn.total_changes == 0:

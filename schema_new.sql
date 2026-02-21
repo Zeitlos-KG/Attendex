@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS timetable (
     start_time TEXT NOT NULL,
     end_time TEXT NOT NULL,
     type TEXT NOT NULL CHECK(type IN ('Class', 'Tutorial', 'Lab')),
+    weight_override REAL,       -- NULL = use type default; set to override per-slot weight
     room TEXT,
     instructor TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

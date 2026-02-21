@@ -27,7 +27,7 @@ timetable = [
     ("UES102",  1, "15:30", "17:10", "Lab"),
 
     # WEDNESDAY
-    ("UES101",  2, "13:00", "14:40", "Tutorial"),
+    ("UES101",  2, "13:00", "14:40", "Tutorial", 1.0),  # 100-min ED Tutorial → counts as 1 (not 0.5)
     ("UES102",  2, "14:40", "15:30", "Class"),
     ("UMA023",  2, "15:30", "16:20", "Class"),
     ("UPH013",  2, "16:20", "17:10", "Class"),
@@ -35,7 +35,7 @@ timetable = [
     # THURSDAY
     ("UPH013",  3, "09:40", "10:30", "Class"),
     ("UES101",  3, "10:30", "11:20", "Class"),
-    ("UES101",  3, "11:20", "13:00", "Lab"),
+    ("UES101",  3, "11:20", "13:00", "Lab",      1.0),  # 100-min ED Lab → counts as 1 (not 2.0)
     ("UHU003",  3, "13:50", "15:30", "Lab"),
 
     # FRIDAY

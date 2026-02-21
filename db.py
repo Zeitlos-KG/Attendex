@@ -24,8 +24,10 @@ def init_db():
     conn.close()
     print("Database initialized successfully.")
 
-def get_weight_for_type(class_type):
-    """Return attendance weight based on class type."""
+def get_weight_for_type(class_type, weight_override=None):
+    """Return attendance weight. Uses weight_override if set, otherwise type-based default."""
+    if weight_override is not None:
+        return weight_override
     weights = {
         'Class': 1.0,
         'Tutorial': 0.5,
@@ -43,7 +45,7 @@ def calculate_attendance_stats(subgroup=None):
     # Get all attendance records with their weights
     if subgroup:
         query = '''
-            SELECT a.status, t.type
+            SELECT a.status, t.type, t.weight_override
             FROM attendance a
             JOIN timetable t ON a.timetable_id = t.id
             WHERE t.subgroup = ?
@@ -51,7 +53,7 @@ def calculate_attendance_stats(subgroup=None):
         records = conn.execute(query, (subgroup,)).fetchall()
     else:
         query = '''
-            SELECT a.status, t.type
+            SELECT a.status, t.type, t.weight_override
             FROM attendance a
             JOIN timetable t ON a.timetable_id = t.id
         '''
@@ -62,7 +64,7 @@ def calculate_attendance_stats(subgroup=None):
     attended_weight = 0.0
     
     for record in records:
-        weight = get_weight_for_type(record['type'])
+        weight = get_weight_for_type(record['type'], record['weight_override'])
         total_weight += weight
         
         if record['status'] == 'Present':
@@ -85,7 +87,7 @@ def calculate_subject_attendance(subject_id):
     conn = get_db_connection()
     
     query = '''
-        SELECT a.status, t.type
+        SELECT a.status, t.type, t.weight_override
         FROM attendance a
         JOIN timetable t ON a.timetable_id = t.id
         WHERE t.subject_id = ?
@@ -98,7 +100,7 @@ def calculate_subject_attendance(subject_id):
     attended_weight = 0.0
     
     for record in records:
-        weight = get_weight_for_type(record['type'])
+        weight = get_weight_for_type(record['type'], record['weight_override'])
         total_weight += weight
         
         if record['status'] == 'Present':

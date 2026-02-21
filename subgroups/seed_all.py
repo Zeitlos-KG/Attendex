@@ -57,10 +57,12 @@ def run():
                 "SELECT id FROM subjects WHERE code=? AND subgroup=?", (code, subgroup)
             ).fetchone()[0]
 
-        for code, day, start, end, typ in timetable:
+        for entry in timetable:
+            code, day, start, end, typ = entry[:5]
+            weight_override = entry[5] if len(entry) > 5 else None
             c.execute(
-                "INSERT INTO timetable (subject_id, subgroup, day_of_week, start_time, end_time, type, room, instructor) VALUES (?,?,?,?,?,?,?,?)",
-                (ids[code], subgroup, day, start, end, typ, "", "")
+                "INSERT INTO timetable (subject_id, subgroup, day_of_week, start_time, end_time, type, weight_override, room, instructor) VALUES (?,?,?,?,?,?,?,?,?)",
+                (ids[code], subgroup, day, start, end, typ, weight_override, "", "")
             )
 
         conn.commit()

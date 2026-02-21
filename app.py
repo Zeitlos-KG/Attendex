@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import sqlite3
 import os
+import sys
 from dotenv import load_dotenv
 from db import (
     get_db_connection, init_db, get_weight_for_type,
@@ -24,8 +25,17 @@ allowed_origins = [
 ]
 CORS(app, origins=allowed_origins)
 
-# Initialize database on startup
+# Initialize database schema on startup
 init_db()
+
+# Seed all subgroup timetables on every startup
+# This ensures the DB is ALWAYS populated even after Render wipes the filesystem
+try:
+    sys.path.insert(0, os.path.dirname(__file__))
+    from subgroups.seed_all import run as seed_subgroups
+    seed_subgroups()
+except Exception as e:
+    print(f"⚠️  Seeding failed (non-fatal): {e}")
 
 # Register upload routes
 register_upload_routes(app, get_db_connection)

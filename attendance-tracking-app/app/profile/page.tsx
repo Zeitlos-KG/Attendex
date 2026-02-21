@@ -40,6 +40,7 @@ export default function ProfilePage() {
     })
 
     const [allSubgroups, setAllSubgroups] = useState<string[]>([])
+    const [subgroupsLoading, setSubgroupsLoading] = useState(true)
     const [originalSubgroup, setOriginalSubgroup] = useState('')
     const [showSubgroupConfirm, setShowSubgroupConfirm] = useState(false)
     const [pendingSubgroup, setPendingSubgroup] = useState('')
@@ -87,10 +88,17 @@ export default function ProfilePage() {
             return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`
         }
         const apiUrl = buildApiUrl(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api')
+        setSubgroupsLoading(true)
         fetch(`${apiUrl}/subgroups`)
             .then(res => res.json())
-            .then(data => setAllSubgroups(data))
-            .catch(err => console.error('Failed to fetch subgroups:', err))
+            .then(data => {
+                setAllSubgroups(Array.isArray(data) ? data : [])
+                setSubgroupsLoading(false)
+            })
+            .catch(err => {
+                console.error('Failed to fetch subgroups:', err)
+                setSubgroupsLoading(false)
+            })
     }, [])
 
     const handleEmailChange = (email: string) => {
@@ -174,9 +182,15 @@ export default function ProfilePage() {
         }
     }
 
-    const availableSubgroups = profile.year
-        ? allSubgroups.filter((sg: string) => sg.startsWith(profile.year)).sort()
-        : []
+    const availableSubgroups = (() => {
+        if (!profile.year) return []
+        const filtered = allSubgroups.filter((sg: string) => sg.startsWith(profile.year)).sort()
+        // Always include the current subgroup even if API hasn't loaded all entries yet
+        if (profile.subgroup && !filtered.includes(profile.subgroup)) {
+            return [profile.subgroup, ...filtered].sort()
+        }
+        return filtered
+    })()
 
     return (
         <div className="min-h-screen bg-background">
@@ -266,18 +280,30 @@ export default function ProfilePage() {
                                 Subgroup
                             </Label>
                             {profile.year ? (
-                                <Select value={profile.subgroup} onValueChange={handleSubgroupChange}>
-                                    <SelectTrigger className="h-11 bg-muted/50 border-border">
-                                        <SelectValue placeholder="Select your subgroup" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {availableSubgroups.map((sg) => (
-                                            <SelectItem key={sg} value={sg}>
-                                                {sg}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                subgroupsLoading ? (
+                                    <div className="h-11 rounded-lg bg-muted/50 border border-border flex items-center px-3 text-sm text-muted-foreground animate-pulse">
+                                        Loading subgroups...
+                                    </div>
+                                ) : (
+                                    <Select value={profile.subgroup} onValueChange={handleSubgroupChange}>
+                                        <SelectTrigger className="h-11 bg-muted/50 border-border">
+                                            <SelectValue placeholder="Select your subgroup" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {availableSubgroups.length > 0 ? (
+                                                availableSubgroups.map((sg) => (
+                                                    <SelectItem key={sg} value={sg}>
+                                                        {sg}
+                                                    </SelectItem>
+                                                ))
+                                            ) : (
+                                                <div className="px-3 py-2 text-sm text-muted-foreground">
+                                                    No subgroups available for Year {profile.year}
+                                                </div>
+                                            )}
+                                        </SelectContent>
+                                    </Select>
+                                )
                             ) : (
                                 <div className="h-11 rounded-lg bg-secondary/30 border border-border/50 flex items-center px-3 text-sm text-muted-foreground">
                                     Please select a year first

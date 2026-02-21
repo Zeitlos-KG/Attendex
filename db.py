@@ -35,29 +35,30 @@ def get_weight_for_type(class_type, weight_override=None):
     }
     return weights.get(class_type, 1.0)
 
-def calculate_attendance_stats(subgroup=None):
+def calculate_attendance_stats(subgroup=None, user_id=None):
     """
-    Calculate overall attendance statistics.
+    Calculate overall attendance statistics for a specific user.
     Returns dict with total_classes, attended_classes, overall_percentage.
     """
     conn = get_db_connection()
     
-    # Get all attendance records with their weights
+    query = '''
+        SELECT a.status, t.type, t.weight_override
+        FROM attendance a
+        JOIN timetable t ON a.timetable_id = t.id
+        WHERE 1=1
+    '''
+    params = []
+    
     if subgroup:
-        query = '''
-            SELECT a.status, t.type, t.weight_override
-            FROM attendance a
-            JOIN timetable t ON a.timetable_id = t.id
-            WHERE t.subgroup = ?
-        '''
-        records = conn.execute(query, (subgroup,)).fetchall()
-    else:
-        query = '''
-            SELECT a.status, t.type, t.weight_override
-            FROM attendance a
-            JOIN timetable t ON a.timetable_id = t.id
-        '''
-        records = conn.execute(query).fetchall()
+        query += ' AND t.subgroup = ?'
+        params.append(subgroup)
+        
+    if user_id:
+        query += ' AND a.user_id = ?'
+        params.append(user_id)
+        
+    records = conn.execute(query, params).fetchall()
     conn.close()
     
     total_weight = 0.0
@@ -79,9 +80,9 @@ def calculate_attendance_stats(subgroup=None):
         'overall_percentage': round(overall_percentage, 2)
     }
 
-def calculate_subject_attendance(subject_id):
+def calculate_subject_attendance(subject_id, user_id=None):
     """
-    Calculate attendance statistics for a specific subject.
+    Calculate attendance statistics for a specific subject for a specific user.
     Returns dict with total, attended, percentage, classes_for_75.
     """
     conn = get_db_connection()
@@ -92,8 +93,13 @@ def calculate_subject_attendance(subject_id):
         JOIN timetable t ON a.timetable_id = t.id
         WHERE t.subject_id = ?
     '''
+    params = [subject_id]
     
-    records = conn.execute(query, (subject_id,)).fetchall()
+    if user_id:
+        query += ' AND a.user_id = ?'
+        params.append(user_id)
+    
+    records = conn.execute(query, params).fetchall()
     conn.close()
     
     total_weight = 0.0

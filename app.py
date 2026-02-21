@@ -45,29 +45,34 @@ register_upload_routes(app, get_db_connection)
 # ==================== DASHBOARD API ====================
 
 @app.route('/api/dashboard', methods=['GET'])
+@require_auth
 def api_dashboard():
-    """Get dashboard statistics."""
+    """Get dashboard statistics for the logged-in user."""
+    user_id = getattr(request, 'user_id', None)
     subgroup = request.args.get('subgroup')
     conn = get_db_connection()
     
-    # Get total subjects
+    # Get total subjects for this subgroup
     if subgroup:
         total_subjects = conn.execute(
             'SELECT COUNT(*) as count FROM subjects WHERE subgroup = ?', 
             (subgroup,)
         ).fetchone()['count']
+        
+        # Get count of PRESENT classes for THIS USER in this subgroup
         attended_count = conn.execute(
-            "SELECT COUNT(*) as count FROM attendance a JOIN timetable t ON a.timetable_id = t.id WHERE a.status = 'Present' AND t.subgroup = ?",
-            (subgroup,)
+            "SELECT COUNT(*) as count FROM attendance a JOIN timetable t ON a.timetable_id = t.id WHERE a.status = 'Present' AND t.subgroup = ? AND a.user_id = ?",
+            (subgroup, user_id)
         ).fetchone()['count']
     else:
         total_subjects = conn.execute('SELECT COUNT(*) as count FROM subjects').fetchone()['count']
         attended_count = conn.execute(
-            "SELECT COUNT(*) as count FROM attendance WHERE status = 'Present'"
+            "SELECT COUNT(*) as count FROM attendance WHERE status = 'Present' AND user_id = ?",
+            (user_id,)
         ).fetchone()['count']
     
-    # Get attendance stats (weighted)
-    stats = calculate_attendance_stats(subgroup)
+    # Get attendance stats (weighted) for THIS USER
+    stats = calculate_attendance_stats(subgroup, user_id=user_id)
     
     conn.close()
     
@@ -422,9 +427,11 @@ def api_unmark_attendance():
     return jsonify({'message': 'Attendance deleted successfully'})
 
 @app.route('/api/attendance/subject/<int:subject_id>', methods=['GET'])
+@require_auth
 def api_get_subject_attendance_stats(subject_id):
     """Get attendance statistics for a specific subject."""
-    stats = calculate_subject_attendance(subject_id)
+    user_id = getattr(request, 'user_id', None)
+    stats = calculate_subject_attendance(subject_id, user_id=user_id)
     return jsonify(stats)
 
 @app.route('/api/attendance/<int:attendance_id>', methods=['DELETE'])

@@ -63,7 +63,7 @@ export const api = {
     const url = subgroup
       ? `${API_URL}/dashboard?subgroup=${encodeURIComponent(subgroup)}`
       : `${API_URL}/dashboard`;
-    const res = await fetch(url);
+    const res = await fetch(url, { headers: await getAuthHeaders() });
     if (!res.ok) throw new Error('Failed to fetch dashboard');
     return res.json();
   },
@@ -73,7 +73,7 @@ export const api = {
     const url = subgroup
       ? `${API_URL}/subjects?subgroup=${encodeURIComponent(subgroup)}`
       : `${API_URL}/subjects`;
-    const res = await fetch(url);
+    const res = await fetch(url, { headers: await getAuthHeaders() });
     if (!res.ok) throw new Error('Failed to fetch subjects');
     return res.json();
   },
@@ -93,7 +93,7 @@ export const api = {
     const url = subgroup
       ? `${API_URL}/timetable?subgroup=${encodeURIComponent(subgroup)}`
       : `${API_URL}/timetable`;
-    const res = await fetch(url);
+    const res = await fetch(url, { headers: await getAuthHeaders() });
     if (!res.ok) throw new Error('Failed to fetch timetable');
     return res.json();
   },
@@ -107,7 +107,7 @@ export const api = {
   }): Promise<TimetableEntry> => {
     const res = await fetch(`${API_URL}/timetable`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await getAuthHeaders(),
       body: JSON.stringify(entry),
     });
     if (!res.ok) throw new Error('Failed to create timetable entry');
@@ -131,13 +131,17 @@ export const api = {
   },
 
   getAttendanceHistory: async (): Promise<AttendanceRecord[]> => {
-    const res = await fetch(`${API_URL}/attendance/history`);
+    const res = await fetch(`${API_URL}/attendance/history`, {
+      headers: await getAuthHeaders()
+    });
     if (!res.ok) throw new Error('Failed to fetch attendance history');
     return res.json();
   },
 
   getSubjectAttendance: async (subjectId: number) => {
-    const res = await fetch(`${API_URL}/attendance/subject/${subjectId}`);
+    const res = await fetch(`${API_URL}/attendance/subject/${subjectId}`, {
+      headers: await getAuthHeaders()
+    });
     if (!res.ok) throw new Error('Failed to fetch subject attendance');
     return res.json();
   },

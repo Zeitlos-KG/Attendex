@@ -43,31 +43,30 @@ def run():
             subjects  = mod.subjects
             timetable = mod.timetable
 
+            from db import execute_query
             conn = get_db_connection()
-            c    = conn.cursor()
 
             # Clear existing data for this subgroup
-            c.execute("DELETE FROM attendance WHERE timetable_id IN (SELECT id FROM timetable WHERE subgroup=?)", (subgroup,))
-            c.execute("DELETE FROM timetable  WHERE subgroup=?", (subgroup,))
-            c.execute("DELETE FROM subjects   WHERE subgroup=?", (subgroup,))
+            execute_query(conn, "DELETE FROM attendance WHERE timetable_id IN (SELECT id FROM timetable WHERE subgroup=?)", (subgroup,))
+            execute_query(conn, "DELETE FROM timetable  WHERE subgroup=?", (subgroup,))
+            execute_query(conn, "DELETE FROM subjects   WHERE subgroup=?", (subgroup,))
             conn.commit()
 
             ids = {}
             for name, code in subjects:
-                c.execute(
-                    "INSERT INTO subjects (name, code, subgroup, year) VALUES (?, ?, ?, ?)",
-                    (name, code, subgroup, year)
-                )
+                # Use insert and get ID
+                execute_query(conn, "INSERT INTO subjects (name, code, subgroup, year) VALUES (?, ?, ?, ?)", (name, code, subgroup, year))
                 conn.commit()
-                ids[code] = c.getRowId() if hasattr(c, 'getRowId') else c.lastrowid
+                
+                # Retrieve ID (robust way for both DBs)
+                row = execute_query(conn, "SELECT id FROM subjects WHERE code=? AND subgroup=?", (code, subgroup))
+                ids[code] = row[0]['id'] if isinstance(row[0], dict) else row[0][0]
 
             for entry in timetable:
                 code, day, start, end, typ = entry[:5]
                 weight_override = entry[5] if len(entry) > 5 else None
-                c.execute(
-                    "INSERT INTO timetable (subject_id, subgroup, day_of_week, start_time, end_time, type, weight_override, room, instructor) VALUES (?,?,?,?,?,?,?,?,?)",
-                    (ids[code], subgroup, day, start, end, typ, weight_override, "", "")
-                )
+                execute_query(conn, "INSERT INTO timetable (subject_id, subgroup, day_of_week, start_time, end_time, type, weight_override, room, instructor) VALUES (?,?,?,?,?,?,?,?,?)",
+                    (ids[code], subgroup, day, start, end, typ, weight_override, "", ""))
 
             conn.commit()
             conn.close()

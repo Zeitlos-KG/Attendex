@@ -1,33 +1,78 @@
 import sqlite3
 import os
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
-DATABASE_PATH = 'student_planner.db'
+DATABASE_URL = os.getenv('DATABASE_URL') # Postgres (Supabase)
+LOCAL_DB_PATH = 'student_planner.db'     # Fallback SQLite
 
 def get_db_connection():
-    """Create and return a database connection."""
-    conn = sqlite3.connect(DATABASE_PATH)
-    conn.row_factory = sqlite3.Row  # Enable dict-like access
-    return conn
+    """Create and return a database connection (Postgres or SQLite)."""
+    if DATABASE_URL:
+        # Postgres connection for production
+        conn = psycopg2.connect(DATABASE_URL)
+        return conn
+    else:
+        # SQLite connection for local development
+        conn = sqlite3.connect(LOCAL_DB_PATH)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+def execute_query(conn, query, params=None):
+    """
+    Unified execution helper.
+    Returns:
+      - List of dicts for SELECT queries.
+      - Cursor object for INSERT/UPDATE/DELETE.
+    """
+    if params is None:
+        params = []
+        
+    is_postgres = hasattr(conn, 'cursor_factory') or not hasattr(conn, 'row_factory')
+    
+    if is_postgres:
+        # Postgres uses %s
+        query = query.replace('?', '%s')
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(query, params)
+        
+        # If it's a SELECT, return results
+        if cur.description:
+            try:
+                return cur.fetchall()
+            except psycopg2.ProgrammingError:
+                return cur
+        return cur
+    else:
+        # SQLite uses ?
+        cur = conn.execute(query, params)
+        if query.strip().upper().startswith('SELECT'):
+            return cur.fetchall()
+        return cur
 
 def init_db():
     """Initialize database with schema."""
-    if not os.path.exists(DATABASE_PATH):
-        print("Creating new database...")
-    
-    conn = get_db_connection()
-    
-    # Read and execute schema
-    with open('schema_new.sql', 'r') as f:
-        conn.executescript(f.read())
-    
-    conn.commit()
-    conn.close()
-    print("Database initialized successfully.")
+    if DATABASE_URL:
+        print("🌱 Production Database (Supabase) detected.")
+        conn = get_db_connection()
+        with open('supabase/production_schema.sql', 'r') as f:
+            cursor = conn.cursor()
+            cursor.execute(f.read())
+        conn.commit()
+        conn.close()
+    else:
+        print("🏠 Local Database (SQLite) detected.")
+        conn = get_db_connection()
+        with open('schema_new.sql', 'r') as f:
+            conn.executescript(f.read())
+        conn.commit()
+        conn.close()
+    print("✅ Database initialized successfully.")
 
 def get_weight_for_type(class_type, weight_override=None):
     """Return attendance weight. Uses weight_override if set, otherwise type-based default."""
     if weight_override is not None:
-        return weight_override
+        return float(weight_override)
     weights = {
         'Class': 1.0,
         'Tutorial': 0.5,
@@ -38,7 +83,6 @@ def get_weight_for_type(class_type, weight_override=None):
 def calculate_attendance_stats(subgroup=None, user_id=None):
     """
     Calculate overall attendance statistics for a specific user.
-    Returns dict with total_classes, attended_classes, overall_percentage.
     """
     conn = get_db_connection()
     
@@ -58,7 +102,7 @@ def calculate_attendance_stats(subgroup=None, user_id=None):
         query += ' AND a.user_id = ?'
         params.append(user_id)
         
-    records = conn.execute(query, params).fetchall()
+    records = execute_query(conn, query, params)
     conn.close()
     
     total_weight = 0.0
@@ -83,7 +127,6 @@ def calculate_attendance_stats(subgroup=None, user_id=None):
 def calculate_subject_attendance(subject_id, user_id=None):
     """
     Calculate attendance statistics for a specific subject for a specific user.
-    Returns dict with total, attended, percentage, classes_for_75.
     """
     conn = get_db_connection()
     
@@ -99,7 +142,7 @@ def calculate_subject_attendance(subject_id, user_id=None):
         query += ' AND a.user_id = ?'
         params.append(user_id)
     
-    records = conn.execute(query, params).fetchall()
+    records = execute_query(conn, query, params)
     conn.close()
     
     total_weight = 0.0
@@ -117,11 +160,8 @@ def calculate_subject_attendance(subject_id, user_id=None):
     # Calculate classes needed for 75%
     classes_needed = 0
     if percentage < 75.0 and total_weight > 0:
-        # Formula: (attended + x) / (total + x) = 0.75
-        # Solving: attended + x = 0.75 * (total + x)
-        # x = (0.75 * total - attended) / 0.25
         required_weight = (0.75 * total_weight - attended_weight) / 0.25
-        classes_needed = max(0, int(required_weight) + 1)  # Round up
+        classes_needed = max(0, int(required_weight) + 1)
     
     return {
         'total_weight': total_weight,

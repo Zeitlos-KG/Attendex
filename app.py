@@ -6,7 +6,8 @@ import sys
 from dotenv import load_dotenv
 from db import (
     get_db_connection, init_db, get_weight_for_type,
-    calculate_attendance_stats, calculate_subject_attendance
+    calculate_attendance_stats, calculate_subject_attendance,
+    execute_query
 )
 from upload_handler import register_upload_routes
 from auth_middleware import require_auth, optional_auth
@@ -54,22 +55,27 @@ def api_dashboard():
     
     # Get total subjects for this subgroup
     if subgroup:
-        total_subjects = conn.execute(
+        subjects_row = execute_query(conn, 
             'SELECT COUNT(*) as count FROM subjects WHERE subgroup = ?', 
             (subgroup,)
-        ).fetchone()['count']
+        )
+        total_subjects = subjects_row[0]['count']
         
         # Get count of PRESENT classes for THIS USER in this subgroup
-        attended_count = conn.execute(
+        attended_row = execute_query(conn,
             "SELECT COUNT(*) as count FROM attendance a JOIN timetable t ON a.timetable_id = t.id WHERE a.status = 'Present' AND t.subgroup = ? AND a.user_id = ?",
             (subgroup, user_id)
-        ).fetchone()['count']
+        )
+        attended_count = attended_row[0]['count']
     else:
-        total_subjects = conn.execute('SELECT COUNT(*) as count FROM subjects').fetchone()['count']
-        attended_count = conn.execute(
+        subjects_row = execute_query(conn, 'SELECT COUNT(*) as count FROM subjects')
+        total_subjects = subjects_row[0]['count']
+        
+        attended_row = execute_query(conn,
             "SELECT COUNT(*) as count FROM attendance WHERE status = 'Present' AND user_id = ?",
             (user_id,)
-        ).fetchone()['count']
+        )
+        attended_count = attended_row[0]['count']
     
     # Get attendance stats (weighted) for THIS USER
     stats = calculate_attendance_stats(subgroup, user_id=user_id)
@@ -92,12 +98,12 @@ def api_get_subjects():
     conn = get_db_connection()
     
     if subgroup:
-        subjects = conn.execute(
+        subjects = execute_query(conn, 
             'SELECT * FROM subjects WHERE subgroup = ? ORDER BY name',
             (subgroup,)
-        ).fetchall()
+        )
     else:
-        subjects = conn.execute('SELECT * FROM subjects ORDER BY name').fetchall()
+        subjects = execute_query(conn, 'SELECT * FROM subjects ORDER BY name')
         
     conn.close()
     
@@ -119,13 +125,13 @@ def api_create_subject():
     
     try:
         conn = get_db_connection()
-        cursor = conn.execute('INSERT INTO subjects (name, code) VALUES (?, ?)', (name, code))
+        cur = execute_query(conn, 'INSERT INTO subjects (name, code) VALUES (?, ?)', (name, code))
         conn.commit()
-        subject_id = cursor.lastrowid
+        subject_id = cur.lastrowid if hasattr(cur, 'lastrowid') else None
         conn.close()
         
         return jsonify({'id': subject_id, 'name': name, 'code': code}), 201
-    except sqlite3.IntegrityError:
+    except (sqlite3.IntegrityError, psycopg2.IntegrityError):
         return jsonify({'error': 'Subject with this name already exists'}), 409
 
 @app.route('/api/subjects/<int:subject_id>', methods=['PUT'])
@@ -144,26 +150,28 @@ def api_update_subject(subject_id):
     
     try:
         conn = get_db_connection()
-        conn.execute('UPDATE subjects SET name = ?, code = ? WHERE id = ?', (name, code, subject_id))
+        cur = execute_query(conn, 'UPDATE subjects SET name = ?, code = ? WHERE id = ?', (name, code, subject_id))
         conn.commit()
         
-        if conn.total_changes == 0:
+        rowcount = cur.rowcount if hasattr(cur, 'rowcount') else 0
+        if rowcount == 0:
             conn.close()
             return jsonify({'error': 'Subject not found'}), 404
         
         conn.close()
         return jsonify({'id': subject_id, 'name': name, 'code': code})
-    except sqlite3.IntegrityError:
+    except (sqlite3.IntegrityError, psycopg2.IntegrityError):
         return jsonify({'error': 'Subject with this name already exists'}), 409
 
 @app.route('/api/subjects/<int:subject_id>', methods=['DELETE'])
 def api_delete_subject(subject_id):
     """Delete a subject and all related timetable/attendance records."""
     conn = get_db_connection()
-    conn.execute('DELETE FROM subjects WHERE id = ?', (subject_id,))
+    cur = execute_query(conn, 'DELETE FROM subjects WHERE id = ?', (subject_id,))
     conn.commit()
     
-    if conn.total_changes == 0:
+    rowcount = cur.rowcount if hasattr(cur, 'rowcount') else 0
+    if rowcount == 0:
         conn.close()
         return jsonify({'error': 'Subject not found'}), 404
     
@@ -176,12 +184,12 @@ def api_delete_subject(subject_id):
 def api_get_subgroups():
     """Get all unique subgroups (only UG: years 1-4)."""
     conn = get_db_connection()
-    subgroups = conn.execute('''
+    subgroups = execute_query(conn, '''
         SELECT DISTINCT subgroup 
         FROM subjects 
         WHERE subgroup IS NOT NULL AND year <= 4
         ORDER BY subgroup
-    ''').fetchall()
+    ''')
     conn.close()
     
     return jsonify([row['subgroup'] for row in subgroups])
@@ -203,7 +211,7 @@ def api_get_timetable():
             WHERE t.subgroup = ?
             ORDER BY t.day_of_week, t.start_time
         '''
-        entries = conn.execute(query, (subgroup,)).fetchall()
+        entries = execute_query(conn, query, (subgroup,))
     else:
         query = '''
             SELECT t.*, s.name as subject_name, s.code as subject_code
@@ -211,7 +219,7 @@ def api_get_timetable():
             JOIN subjects s ON t.subject_id = s.id
             ORDER BY t.day_of_week, t.start_time
         '''
-        entries = conn.execute(query).fetchall()
+        entries = execute_query(conn, query)
     
     conn.close()
     
@@ -244,12 +252,12 @@ def api_create_timetable_entry():
     
     try:
         conn = get_db_connection()
-        cursor = conn.execute(
+        cur = execute_query(conn,
             'INSERT INTO timetable (subject_id, day_of_week, start_time, end_time, type) VALUES (?, ?, ?, ?, ?)',
             (subject_id, day_of_week, start_time, end_time, class_type)
         )
         conn.commit()
-        entry_id = cursor.lastrowid
+        entry_id = cur.lastrowid if hasattr(cur, 'lastrowid') else None
         conn.close()
         
         return jsonify({
@@ -260,7 +268,7 @@ def api_create_timetable_entry():
             'end_time': end_time,
             'type': class_type
         }), 201
-    except sqlite3.IntegrityError as e:
+    except (sqlite3.IntegrityError, psycopg2.IntegrityError) as e:
         return jsonify({'error': 'Invalid subject_id or constraint violation'}), 400
 
 @app.route('/api/timetable/<int:entry_id>', methods=['PUT'])
@@ -289,16 +297,17 @@ def api_update_timetable_entry(entry_id):
     
     try:
         conn = get_db_connection()
-        conn.execute(f'UPDATE timetable SET {", ".join(updates)} WHERE id = ?', values)
+        cur = execute_query(conn, f'UPDATE timetable SET {", ".join(updates)} WHERE id = ?', values)
         conn.commit()
         
-        if conn.total_changes == 0:
+        rowcount = cur.rowcount if hasattr(cur, 'rowcount') else 0
+        if rowcount == 0:
             conn.close()
             return jsonify({'error': 'Timetable entry not found'}), 404
         
         conn.close()
         return jsonify({'message': 'Timetable entry updated successfully'})
-    except sqlite3.IntegrityError:
+    except (sqlite3.IntegrityError, psycopg2.IntegrityError):
         return jsonify({'error': 'Invalid data or constraint violation'}), 400
 
 @app.route('/api/timetable/<int:entry_id>', methods=['DELETE'])
@@ -306,10 +315,11 @@ def api_update_timetable_entry(entry_id):
 def api_delete_timetable_entry(entry_id):
     """Delete a timetable entry and all related attendance records."""
     conn = get_db_connection()
-    conn.execute('DELETE FROM timetable WHERE id = ?', (entry_id,))
+    cur = execute_query(conn, 'DELETE FROM timetable WHERE id = ?', (entry_id,))
     conn.commit()
     
-    if conn.total_changes == 0:
+    rowcount = cur.rowcount if hasattr(cur, 'rowcount') else 0
+    if rowcount == 0:
         conn.close()
         return jsonify({'error': 'Timetable entry not found'}), 404
     
@@ -344,25 +354,26 @@ def api_mark_attendance():
         conn = get_db_connection()
         
         # Check if attendance already exists for THIS user
-        existing = conn.execute(
+        res = execute_query(conn, 
             'SELECT id FROM attendance WHERE timetable_id = ? AND date = ? AND user_id = ?',
             (timetable_id, date, user_id)
-        ).fetchone()
+        )
+        existing = res[0] if res else None
         
         if existing:
             # Update existing record
-            conn.execute(
+            execute_query(conn,
                 'UPDATE attendance SET status = ?, marked_at = CURRENT_TIMESTAMP WHERE id = ?',
                 (status, existing['id'])
             )
             attendance_id = existing['id']
         else:
             # Insert new record with user_id
-            cursor = conn.execute(
+            cur = execute_query(conn,
                 'INSERT INTO attendance (timetable_id, date, status, user_id) VALUES (?, ?, ?, ?)',
                 (timetable_id, date, status, user_id)
             )
-            attendance_id = cursor.lastrowid
+            attendance_id = cur.lastrowid if hasattr(cur, 'lastrowid') else None
         
         conn.commit()
         conn.close()
@@ -392,7 +403,7 @@ def api_get_attendance_history():
         WHERE a.user_id = ?
         ORDER BY a.date DESC, t.start_time
     '''
-    records = conn.execute(query, (user_id,)).fetchall()
+    records = execute_query(conn, query, (user_id,))
     conn.close()
     
     return jsonify([dict(row) for row in records])
@@ -413,13 +424,16 @@ def api_unmark_attendance():
     date = data['date']
     
     conn = get_db_connection()
-    conn.execute(
+    cur = execute_query(conn,
         'DELETE FROM attendance WHERE timetable_id = ? AND date = ? AND user_id = ?',
         (timetable_id, date, user_id)
     )
     conn.commit()
     
-    if conn.total_changes == 0:
+    # Check rowcount (robust for both)
+    rowcount = cur.rowcount if hasattr(cur, 'rowcount') else 0
+    
+    if rowcount == 0:
         conn.close()
         return jsonify({'error': 'Attendance record not found'}), 404
     
@@ -440,10 +454,11 @@ def api_delete_attendance(attendance_id):
     """Delete an attendance record (must belong to user)."""
     user_id = getattr(request, 'user_id', None)
     conn = get_db_connection()
-    conn.execute('DELETE FROM attendance WHERE id = ? AND user_id = ?', (attendance_id, user_id))
+    cur = execute_query(conn, 'DELETE FROM attendance WHERE id = ? AND user_id = ?', (attendance_id, user_id))
     conn.commit()
     
-    if conn.total_changes == 0:
+    rowcount = cur.rowcount if hasattr(cur, 'rowcount') else 0
+    if rowcount == 0:
         conn.close()
         return jsonify({'error': 'Attendance record not found'}), 404
     

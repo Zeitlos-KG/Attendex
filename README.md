@@ -42,22 +42,22 @@ Attendex/
 │   ├── components/             # Shared UI components
 │   └── lib/                    # Supabase client, API helpers, utils
 │
-├── timetable_importer/         # Scripts to seed timetable data per subgroup
-│   ├── template.py             # Copy this to add a new subgroup
-│   ├── import_1a82.py          # 1A82 (live on Render)
-│   └── README.md               # How to add more subgroups
+├── subgroups/                  # Subgroup timetable data & auto-seeding engine
+│   ├── 1A/                     # All 54 Pool A subgroups (1A11-1A95)
+│   ├── 1B/                     # Pool B subgroups (e.g. 1B28)
+│   ├── seed_all.py             # Auto-seeds EVERYTHING recursively on startup/deploy
+│   └── skeleton.py             # Copy this to add a new subgroup
 │
-├── docs/                       # Setup & deployment guides
-│   ├── DEPLOYMENT.md
-│   ├── QUICK_START.md
-│   └── SUPABASE_SETUP.md
+├── docs/                       # Setup, deployment & resource guides
+│   ├── DEPLOYMENT.md           # Main deployment guide
+│   └── resources/              # PDFs/Excels for reference
 │
-├── app.py                      # Flask API entry point
-├── db.py                       # SQLite helpers
-├── auth_middleware.py          # JWT verification for Supabase tokens
-├── upload_handler.py           # Excel timetable upload endpoint
-├── schema_new.sql              # SQLite schema
-├── render.yaml                 # Render deployment config
+├── supabase/                   # SQL migration & setup scripts
+├── app.py                      # Flask API entry point (hardened with @require_auth)
+├── db.py                       # SQLite / stats helpers
+├── auth_middleware.py          # JWT verification & user isolation
+├── schema_new.sql              # Database schema
+├── render.yaml                 # Render deployment (auto-seeds subgroups)
 └── requirements.txt            # Python dependencies
 ```
 
@@ -81,7 +81,7 @@ cp .env.template .env
 
 # Start Flask dev server
 python app.py
-# API runs at http://localhost:5000
+# API runs at http://localhost:5000 (seeds subgroups on startup)
 ```
 
 ### 2 — Frontend (Next.js)
@@ -100,14 +100,13 @@ npm run dev
 # App runs at http://localhost:3000
 ```
 
-### 3 — Seed Timetable Data
+### 3 — How to add a new Subgroup
 ```bash
-# Import 1A82 timetable into local SQLite DB
-python timetable_importer/import_1a82.py
+# 1. Copy the skeleton
+cp subgroups/skeleton.py subgroups/1B/TT_1B31.py
 
-# To add a new subgroup, copy the template:
-cp timetable_importer/template.py timetable_importer/import_1B31.py
-# Edit and run it
+# 2. Fill in the timetable data in the file
+# 3. Push and redeploy Render — it auto-appears everywhere!
 ```
 
 ---

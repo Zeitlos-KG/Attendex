@@ -15,10 +15,11 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS subjects (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
-    code TEXT UNIQUE NOT NULL,
+    code TEXT NOT NULL,
     subgroup TEXT,
     year INTEGER,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(code, subgroup) -- A subject code is unique per subgroup
 );
 
 -- Timetable entries (now linked to subgroups)

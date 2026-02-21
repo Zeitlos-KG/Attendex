@@ -30,51 +30,54 @@ def run():
     seeded = []
 
     for filepath in tt_files:
-        filename = os.path.basename(filepath)
-        module_name = f"tt_{filename.replace('.', '_')}" # e.g. tt_TT_1A11_py
-        
-        spec = importlib.util.spec_from_file_location(module_name, filepath)
-        mod  = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
+        try:
+            filename = os.path.basename(filepath)
+            module_name = f"tt_{filename.replace('.', '_')}" # e.g. tt_TT_1A11_py
+            
+            spec = importlib.util.spec_from_file_location(module_name, filepath)
+            mod  = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
 
-        subgroup  = mod.SUBGROUP
-        year      = mod.YEAR
-        subjects  = mod.subjects
-        timetable = mod.timetable
+            subgroup  = mod.SUBGROUP
+            year      = mod.YEAR
+            subjects  = mod.subjects
+            timetable = mod.timetable
 
-        conn = get_db_connection()
-        c    = conn.cursor()
+            conn = get_db_connection()
+            c    = conn.cursor()
 
-        # Clear existing data for this subgroup
-        c.execute("DELETE FROM attendance WHERE timetable_id IN (SELECT id FROM timetable WHERE subgroup=?)", (subgroup,))
-        c.execute("DELETE FROM timetable  WHERE subgroup=?", (subgroup,))
-        c.execute("DELETE FROM subjects   WHERE subgroup=?", (subgroup,))
-        conn.commit()
-
-        ids = {}
-        for name, code in subjects:
-            c.execute(
-                "INSERT INTO subjects (name, code, subgroup, year) VALUES (?, ?, ?, ?)",
-                (name, code, subgroup, year)
-            )
+            # Clear existing data for this subgroup
+            c.execute("DELETE FROM attendance WHERE timetable_id IN (SELECT id FROM timetable WHERE subgroup=?)", (subgroup,))
+            c.execute("DELETE FROM timetable  WHERE subgroup=?", (subgroup,))
+            c.execute("DELETE FROM subjects   WHERE subgroup=?", (subgroup,))
             conn.commit()
-            ids[code] = c.execute(
-                "SELECT id FROM subjects WHERE code=? AND subgroup=?", (code, subgroup)
-            ).fetchone()[0]
 
-        for entry in timetable:
-            code, day, start, end, typ = entry[:5]
-            weight_override = entry[5] if len(entry) > 5 else None
-            c.execute(
-                "INSERT INTO timetable (subject_id, subgroup, day_of_week, start_time, end_time, type, weight_override, room, instructor) VALUES (?,?,?,?,?,?,?,?,?)",
-                (ids[code], subgroup, day, start, end, typ, weight_override, "", "")
-            )
+            ids = {}
+            for name, code in subjects:
+                c.execute(
+                    "INSERT INTO subjects (name, code, subgroup, year) VALUES (?, ?, ?, ?)",
+                    (name, code, subgroup, year)
+                )
+                conn.commit()
+                ids[code] = c.getRowId() if hasattr(c, 'getRowId') else c.lastrowid
 
-        conn.commit()
-        conn.close()
+            for entry in timetable:
+                code, day, start, end, typ = entry[:5]
+                weight_override = entry[5] if len(entry) > 5 else None
+                c.execute(
+                    "INSERT INTO timetable (subject_id, subgroup, day_of_week, start_time, end_time, type, weight_override, room, instructor) VALUES (?,?,?,?,?,?,?,?,?)",
+                    (ids[code], subgroup, day, start, end, typ, weight_override, "", "")
+                )
 
-        print(f"   ✅ {subgroup:8s} | {len(subjects)} subjects | {len(timetable)} slots")
-        seeded.append(subgroup)
+            conn.commit()
+            conn.close()
+
+            print(f"   ✅ {subgroup:8s} | {len(subjects)} subjects | {len(timetable)} slots")
+            seeded.append(subgroup)
+
+        except Exception as e:
+            print(f"   ❌ Error seeding {filepath}: {e}")
+            continue
 
     print(f"\n🌱 SEEDING COMPLETE: {len(seeded)} subgroups are now available.")
     print(f"Active list: {', '.join(seeded[:10])} ... (total {len(seeded)})")

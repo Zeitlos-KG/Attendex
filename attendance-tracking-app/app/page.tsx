@@ -513,7 +513,7 @@ export default function LandingPage() {
                   <Input
                     id="fullName"
                     type="text"
-                    placeholder="e.g. Arjun Sharma"
+                    placeholder="Full Name"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     className="h-11 bg-muted/50 border-border focus:border-foreground focus:ring-foreground/20"

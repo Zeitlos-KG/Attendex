@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -25,6 +25,18 @@ import {
 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 
+// Reads ?openAuth=true from the URL and fires a callback.
+// Must be a separate component so useSearchParams is inside a Suspense boundary.
+function AuthModalOpener({ onOpen }: { onOpen: () => void }) {
+  const searchParams = useSearchParams()
+  useEffect(() => {
+    if (searchParams.get('openAuth') === 'true') {
+      onOpen()
+    }
+  }, [searchParams, onOpen])
+  return null
+}
+
 export default function LandingPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -38,7 +50,6 @@ export default function LandingPage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [userName, setUserName] = useState("")
   const router = useRouter()
-  const searchParams = useSearchParams()
   const supabase = createClient()
 
   // Check if user is already logged in
@@ -66,14 +77,6 @@ export default function LandingPage() {
     }
     checkUser()
   }, [])
-
-  // Auto-open auth modal when redirected from /login
-  useEffect(() => {
-    if (searchParams.get('openAuth') === 'true') {
-      setIsSignUp(false) // open directly in login mode
-      setShowAuthModal(true)
-    }
-  }, [searchParams])
 
   const extractName = (email: string) => {
     const namePart = email.split("@")[0]
@@ -214,6 +217,10 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
+      {/* Auto-open modal when coming from /login redirect */}
+      <Suspense fallback={null}>
+        <AuthModalOpener onOpen={() => { setIsSignUp(false); setShowAuthModal(true) }} />
+      </Suspense>
       {/* Subtle grid background */}
       <div className="fixed inset-0 -z-10">
         <div

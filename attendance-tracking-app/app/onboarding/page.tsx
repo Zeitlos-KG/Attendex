@@ -10,8 +10,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
-import { GraduationCap, Users, Building2 } from "lucide-react"
-import { getBranchDisplayName, extractBranchCode, extractPool } from "@/lib/branch-utils"
+import { GraduationCap, Users } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 
 // Normalize API URL: strip trailing slash, ensure it ends with /api
@@ -21,7 +20,7 @@ function buildApiUrl(raw: string): string {
 }
 const API_URL = buildApiUrl(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api')
 
-async function getSubgroups() {
+async function getSubgroups(): Promise<string[]> {
     try {
         const res = await fetch(`${API_URL}/subgroups`)
         if (res.ok) {
@@ -36,25 +35,22 @@ async function getSubgroups() {
 export default function OnboardingPage() {
     const router = useRouter()
     const [year, setYear] = useState('')
-    const [poolOrBranch, setPoolOrBranch] = useState('') // Pool for year 1, Branch for years 2-4
     const [subgroup, setSubgroup] = useState('')
-    const [subgroups, setSubgroups] = useState<string[]>([])
+    const [allSubgroups, setAllSubgroups] = useState<string[]>([])
     const [loading, setLoading] = useState(false)
     const [checkingAuth, setCheckingAuth] = useState(true)
     const supabase = createClient()
 
     useEffect(() => {
-        // Check if user is authenticated
         const checkUser = async () => {
             const { data: { user } } = await supabase.auth.getUser()
 
             if (!user) {
-                // Not logged in, redirect to home
                 router.push('/')
                 return
             }
 
-            // Check if user already has a subgroup in their profile
+            // If already onboarded, skip to dashboard
             const { data: profile } = await supabase
                 .from('profiles')
                 .select('subgroup')
@@ -62,75 +58,35 @@ export default function OnboardingPage() {
                 .single()
 
             if (profile?.subgroup) {
-                // Already onboarded, go to dashboard
                 router.push('/dashboard')
             } else {
                 setCheckingAuth(false)
             }
         }
 
-        // Load subgroups
-        getSubgroups().then(setSubgroups)
+        getSubgroups().then(setAllSubgroups)
         checkUser()
     }, [router])
 
-    // Reset pool/branch and subgroup when year changes
+    // Reset subgroup whenever year changes
     useEffect(() => {
-        setPoolOrBranch('')
         setSubgroup('')
     }, [year])
 
-    // Get available pools (for year 1) or branches (for years 2-4)
-    const getPoolsOrBranches = (): string[] => {
-        if (!year) return []
-
-        const yearSubgroups = subgroups.filter(sg => sg.startsWith(year))
-
-        if (year === '1') {
-            // Year 1: Extract pools (A or B)
-            const pools = new Set<string>()
-            yearSubgroups.forEach(sg => {
-                const pool = extractPool(sg)
-                if (pool) pools.add(pool)
-            })
-            return Array.from(pools).sort()
-        } else {
-            // Years 2-4: Extract branches
-            const branches = new Set<string>()
-            yearSubgroups.forEach(sg => {
-                const branch = extractBranchCode(sg)
-                if (branch) branches.add(branch)
-            })
-            return Array.from(branches).sort()
-        }
-    }
-
-    // Filter subgroups by year and pool/branch
-    const filteredSubgroups = subgroups.filter(sg => {
-        if (!year || !poolOrBranch) return false
-
-        if (year === '1') {
-            // Year 1: Filter by pool (1A11, 1A12 for pool A)
-            return sg.startsWith(`1${poolOrBranch}`)
-        } else {
-            // Years 2-4: Filter by branch (2CSE1, 2CSE2 for CSE)
-            return sg.startsWith(year) && extractBranchCode(sg) === poolOrBranch
-        }
-    })
-
-    const poolsOrBranches = getPoolsOrBranches()
-    const isYear1 = year === '1'
+    // Subgroups filtered by the chosen year, sorted naturally
+    const subgroupsForYear = allSubgroups
+        .filter(sg => sg.startsWith(year))
+        .sort()
 
     const handleSubmit = async () => {
         if (!year || !subgroup) {
-            alert('Please complete all selections')
+            alert('Please select your year and subgroup')
             return
         }
 
         setLoading(true)
 
         try {
-            // Get current user
             const { data: { user } } = await supabase.auth.getUser()
 
             if (!user) {
@@ -139,7 +95,6 @@ export default function OnboardingPage() {
                 return
             }
 
-            // Update user profile with subgroup and year
             const { error } = await supabase
                 .from('profiles')
                 .update({ subgroup, year: parseInt(year) })
@@ -152,7 +107,6 @@ export default function OnboardingPage() {
                 return
             }
 
-            // Success! Redirect to dashboard
             router.push('/dashboard')
         } catch (error) {
             console.error('Error during onboarding:', error)
@@ -182,12 +136,13 @@ export default function OnboardingPage() {
                     </div>
                     <h2 className="text-2xl font-semibold text-foreground">Welcome!</h2>
                     <p className="text-muted-foreground">
-                        Let's set up your timetable
+                        Let&apos;s set up your timetable
                     </p>
                 </div>
 
                 {/* Form */}
                 <div className="rounded-2xl border border-border/50 bg-card/50 backdrop-blur-sm p-8 space-y-6 shadow-lg">
+
                     {/* Year Selection */}
                     <div className="space-y-2">
                         <label className="block text-sm font-medium flex items-center gap-2">
@@ -207,41 +162,19 @@ export default function OnboardingPage() {
                         </Select>
                     </div>
 
-                    {/* Pool/Branch Selection */}
-                    {year && (
-                        <div className="space-y-2">
-                            <label className="block text-sm font-medium flex items-center gap-2">
-                                <Building2 className="h-4 w-4" />
-                                {isYear1 ? 'Select Your Pool' : 'Select Your Branch'}
-                            </label>
-                            <Select value={poolOrBranch} onValueChange={setPoolOrBranch}>
-                                <SelectTrigger className="h-12 bg-muted/50 border-border">
-                                    <SelectValue placeholder={isYear1 ? "Choose your pool" : "Choose your branch"} />
-                                </SelectTrigger>
-                                <SelectContent className="max-h-60">
-                                    {poolsOrBranches.map((item) => (
-                                        <SelectItem key={item} value={item}>
-                                            {isYear1 ? `Pool ${item}` : getBranchDisplayName(item)}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    )}
-
-                    {/* Subgroup Selection */}
+                    {/* Subgroup Selection — shown once year is chosen */}
                     <div className="space-y-2">
                         <label className="block text-sm font-medium flex items-center gap-2">
                             <Users className="h-4 w-4" />
                             Select Your Subgroup
                         </label>
-                        {year && poolOrBranch ? (
+                        {year ? (
                             <Select value={subgroup} onValueChange={setSubgroup}>
                                 <SelectTrigger className="h-12 bg-muted/50 border-border">
                                     <SelectValue placeholder="Choose your subgroup" />
                                 </SelectTrigger>
                                 <SelectContent className="max-h-60">
-                                    {filteredSubgroups.map((sg) => (
+                                    {subgroupsForYear.map((sg) => (
                                         <SelectItem key={sg} value={sg}>
                                             {sg}
                                         </SelectItem>
@@ -250,12 +183,12 @@ export default function OnboardingPage() {
                             </Select>
                         ) : (
                             <div className="h-12 rounded-lg bg-secondary/30 border border-border/50 flex items-center px-3 text-sm text-muted-foreground">
-                                {!year ? 'Please select a year first' : `Please select a ${isYear1 ? 'pool' : 'branch'} first`}
+                                Please select a year first
                             </div>
                         )}
                     </div>
 
-                    {/* Submit Button */}
+                    {/* Submit */}
                     <Button
                         onClick={handleSubmit}
                         disabled={!year || !subgroup || loading}

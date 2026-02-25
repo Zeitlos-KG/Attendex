@@ -2,7 +2,7 @@
 
 import React from "react"
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -36,6 +36,7 @@ export default function LandingPage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [userName, setUserName] = useState("")
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClient()
 
   // Check if user is already logged in
@@ -63,6 +64,14 @@ export default function LandingPage() {
     }
     checkUser()
   }, [])
+
+  // Auto-open auth modal when redirected from /login
+  useEffect(() => {
+    if (searchParams.get('openAuth') === 'true') {
+      setIsSignUp(false) // open directly in login mode
+      setShowAuthModal(true)
+    }
+  }, [searchParams])
 
   const extractName = (email: string) => {
     const namePart = email.split("@")[0]
@@ -102,8 +111,12 @@ export default function LandingPage() {
     e.preventDefault()
     setError("")
 
+    // Trim whitespace from credentials before any validation
+    const trimmedEmail = email.trim()
+    const trimmedPassword = password.trim()
+
     // Validate Thapar email
-    if (!email.endsWith("@thapar.edu")) {
+    if (!trimmedEmail.endsWith("@thapar.edu")) {
       setError("Please use your @thapar.edu email address")
       return
     }
@@ -114,8 +127,8 @@ export default function LandingPage() {
       return
     }
 
-    // Validate password
-    if (password.length < 6) {
+    // Validate password length
+    if (trimmedPassword.length < 6) {
       setError("Password must be at least 6 characters")
       return
     }
@@ -126,8 +139,8 @@ export default function LandingPage() {
       if (isSignUp) {
         // Sign up
         const { data, error: signUpError } = await supabase.auth.signUp({
-          email,
-          password,
+          email: trimmedEmail,
+          password: trimmedPassword,
           options: {
             emailRedirectTo: `${window.location.origin}/auth/callback`,
             data: {
@@ -139,21 +152,21 @@ export default function LandingPage() {
         if (signUpError) throw signUpError
 
         if (data.user) {
-          // Show verification modalinstead of redirecting
+          // Show verification modal instead of redirecting
           setShowAuthModal(false)
           setShowVerificationModal(true)
         }
       } else {
         // Login
         const { data, error: loginError } = await supabase.auth.signInWithPassword({
-          email,
-          password,
+          email: trimmedEmail,
+          password: trimmedPassword,
         })
 
         if (loginError) throw loginError
 
         if (data.user) {
-          setUserName(extractName(email))
+          setUserName(extractName(trimmedEmail))
           setIsLoggedIn(true)
           setShowAuthModal(false)
           // Redirect to dashboard or onboarding based on profile completion
@@ -501,9 +514,10 @@ export default function LandingPage() {
                   className="h-11 bg-muted/50 border-border focus:border-foreground focus:ring-foreground/20"
                   required
                   minLength={6}
+                  maxLength={72}
                   autoComplete={isSignUp ? "new-password" : "current-password"}
                 />
-                <p className="text-xs text-muted-foreground">At least 6 characters</p>
+                <p className="text-xs text-muted-foreground">6–72 characters</p>
               </div>
 
               {error && <p className="text-sm text-destructive">{error}</p>}

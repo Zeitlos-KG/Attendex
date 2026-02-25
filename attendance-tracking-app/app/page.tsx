@@ -20,6 +20,8 @@ import {
   Zap,
   Shield,
   TrendingUp,
+  Linkedin,
+  Github,
 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 
@@ -407,9 +409,29 @@ export default function LandingPage() {
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold bg-gradient-to-r from-white via-gray-400 to-white bg-[length:200%_auto] animate-[gradient_6s_linear_infinite] bg-clip-text text-transparent">Attendex</span>
           </div>
-          <p className="text-sm text-muted-foreground flex items-center gap-1.5">
-            Made with <Heart className="h-3.5 w-3.5 text-foreground fill-foreground" /> by Krishiv Gupta
-          </p>
+          <div className="flex items-center gap-3">
+            <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+              Made with <Heart className="h-3.5 w-3.5 text-foreground fill-foreground" /> by Krishiv Gupta
+            </p>
+            <a
+              href="https://www.linkedin.com/in/gupta-krishiv"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="LinkedIn"
+              className="text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Linkedin className="h-4 w-4" />
+            </a>
+            <a
+              href="https://github.com/Zeitlos-KG/"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="GitHub"
+              className="text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Github className="h-4 w-4" />
+            </a>
+          </div>
         </div>
       </footer>
 
@@ -491,7 +513,7 @@ export default function LandingPage() {
                   <Input
                     id="fullName"
                     type="text"
-                    placeholder="Krishiv Gupta"
+                    placeholder="e.g. Arjun Sharma"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     className="h-11 bg-muted/50 border-border focus:border-foreground focus:ring-foreground/20"

@@ -1,8 +1,9 @@
 -- ===============================================
 -- ATTENDEX PRODUCTION SCHEMA (SUPABASE POSTGRES)
+-- Fully idempotent — safe to run on every startup
 -- ===============================================
 
--- 1. Profiles (already exists in some setups, but here for completeness)
+-- 1. Profiles
 CREATE TABLE IF NOT EXISTS public.profiles (
     id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
     email TEXT UNIQUE NOT NULL,
@@ -55,17 +56,24 @@ CREATE INDEX IF NOT EXISTS idx_timetable_subgroup ON public.timetable(subgroup);
 CREATE INDEX IF NOT EXISTS idx_attendance_user ON public.attendance(user_id);
 CREATE INDEX IF NOT EXISTS idx_attendance_date ON public.attendance(date);
 
--- 6. RLS (Row Level Security)
+-- 6. RLS policies — wrapped in DO blocks so they never fail if already exist
 ALTER TABLE public.attendance ENABLE ROW LEVEL SECURITY;
 
--- Users can only see/edit their own attendance
-CREATE POLICY "Users can manage their own attendance" 
-ON public.attendance FOR ALL 
-USING (auth.uid() = user_id);
+DO $$ BEGIN
+  CREATE POLICY "Users can manage their own attendance"
+    ON public.attendance FOR ALL
+    USING (auth.uid() = user_id);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
--- Everyone can read subjects and timetable (to populate the UI)
-ALTER TABLE public.subjects ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.timetable ENABLE ROW LEVEL SECURITY;
+DO $$ BEGIN
+  CREATE POLICY "Postgres user can manage attendance"
+    ON public.attendance FOR ALL
+    TO postgres
+    USING (true)
+    WITH CHECK (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Allow public read access for subjects" ON public.subjects FOR SELECT USING (true);
-CREATE POLICY "Allow public read access for timetable" ON public.timetable FOR SELECT USING (true);
+-- Note: subjects and timetable have RLS disabled (set via Supabase dashboard)
+-- so no policies needed for them — the Flask backend can read/write freely.

@@ -220,41 +220,33 @@ export default function TimetablePage() {
             )}
           </div>
 
-          {/* Class Display */}
+          {/* Class Display — always show, regardless of day type */}
           <div className="space-y-4">
-            {/* Classes for selected date */}
-            {dayStatus?.isWorkingDay ? (
-              <div className="space-y-4">
-                <h2 className="text-xl font-semibold text-foreground">
-                  Classes for {selectedDate.toLocaleDateString('en-US', { weekday: 'long' })}
-                </h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-foreground">
+                Classes for {selectedDate.toLocaleDateString('en-US', { weekday: 'long' })}
+              </h2>
+            </div>
 
+            {(() => {
+              const dayIdx = getTimetableDayOfWeek(selectedDate)
+              const dayName = days[dayIdx]
+              const classes = timetableByDay[dayName] ?? []
+
+              return classes.length === 0 ? (
+                <div className="text-center py-12 rounded-xl border border-dashed border-border/50 text-muted-foreground">
+                  No classes scheduled for this day
+                </div>
+              ) : (
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {timetableByDay[days[getTimetableDayOfWeek(selectedDate)]]?.map((entry) => (
+                  {classes.map((entry) => (
                     <ClassCard key={entry.id} entry={entry} />
                   ))}
                 </div>
-
-                {(!timetableByDay[days[getTimetableDayOfWeek(selectedDate)]] ||
-                  timetableByDay[days[getTimetableDayOfWeek(selectedDate)]].length === 0) && (
-                    <div className="text-center py-12 rounded-xl border border-border/50 bg-card/50 backdrop-blur-sm">
-                      <p className="text-muted-foreground">No classes scheduled for this day</p>
-                    </div>
-                  )}
-              </div>
-            ) : (
-              <div className="text-center py-16 rounded-xl border border-border/50 bg-card/50 backdrop-blur-sm">
-                <div className="max-w-md mx-auto space-y-3">
-                  <h3 className="text-xl font-semibold text-foreground">
-                    {dayStatus?.message}
-                  </h3>
-                  <p className="text-muted-foreground">
-                    No classes scheduled
-                  </p>
-                </div>
-              </div>
-            )}
+              )
+            })()}
           </div>
+
         </div>
       </main>
     </div>

@@ -6,6 +6,7 @@ This approach works regardless of JWT algorithm (HS256, RS256, etc.)
 and is always in sync with Supabase's auth system.
 """
 import os
+import time
 import requests
 from functools import wraps
 from flask import request, jsonify
@@ -24,18 +25,46 @@ SUPABASE_API_KEY = (
     ''
 )
 
+# ── Token cache: token → (user_dict, expiry_timestamp) ──────────────────────
+# Avoids a Supabase HTTP round-trip on every API call. TTL = 5 minutes.
+_TOKEN_CACHE: dict = {}
+_CACHE_TTL = 300  # seconds
+
+
+def _get_cached(token: str):
+    entry = _TOKEN_CACHE.get(token)
+    if entry and time.time() < entry[1]:
+        return entry[0]        # return cached user dict
+    if token in _TOKEN_CACHE:
+        del _TOKEN_CACHE[token]  # expired — remove
+    return None
+
+
+def _set_cached(token: str, user: dict):
+    _TOKEN_CACHE[token] = (user, time.time() + _CACHE_TTL)
+    # Prune if cache grows large
+    if len(_TOKEN_CACHE) > 500:
+        oldest = sorted(_TOKEN_CACHE, key=lambda t: _TOKEN_CACHE[t][1])[:100]
+        for t in oldest:
+            del _TOKEN_CACHE[t]
+
 
 def verify_supabase_token(token: str):
     """
     Verify a Supabase access token by calling /auth/v1/user.
+    Result is cached for 5 minutes to avoid repeated HTTP round-trips.
     Returns the user dict if valid, None if invalid/expired.
     """
+    # Check cache first — avoids Supabase HTTP call on every API request
+    cached = _get_cached(token)
+    if cached is not None:
+        return cached
+
     if not SUPABASE_URL:
         print("⚠️  SUPABASE_URL not set — cannot verify token")
         return None
 
     try:
-        print(f"🔑 Verifying token via {SUPABASE_URL}/auth/v1/user")
         resp = requests.get(
             f"{SUPABASE_URL}/auth/v1/user",
             headers={
@@ -45,12 +74,15 @@ def verify_supabase_token(token: str):
             timeout=5,
         )
         if resp.status_code == 200:
-            return resp.json()   # {"id": "...", "email": "...", ...}
+            user = resp.json()
+            _set_cached(token, user)   # cache for next requests
+            return user
         print(f"⚠️  Token rejected by Supabase: {resp.status_code} {resp.text[:120]}")
         return None
     except Exception as e:
         print(f"⚠️  Token verification error: {e}")
         return None
+
 
 
 def _extract_token(request):

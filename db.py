@@ -1,7 +1,6 @@
 import sqlite3
 import os
 
-DATABASE_URL = os.getenv('DATABASE_URL')   # Postgres (Supabase)
 LOCAL_DB_PATH = 'student_planner.db'      # Fallback SQLite
 
 # ─── Lazy Postgres import ────────────────────────────────────────────────────
@@ -14,10 +13,21 @@ except ImportError:
 
 
 def get_db_connection():
-    """Create and return a database connection (Postgres or SQLite)."""
-    if DATABASE_URL and PSYCOPG2_AVAILABLE:
-        # connect_timeout=10 prevents hanging for minutes
-        conn = psycopg2.connect(DATABASE_URL, connect_timeout=10)
+    """Create and return a database connection (Postgres or SQLite).
+    
+    DATABASE_URL is read fresh each call so env-var changes take effect
+    without a code redeploy.
+    
+    For Supabase: use the Session Pooler URL (port 5432, IPv4-compatible).
+    Direct connection URL (db.xxx.supabase.co) uses IPv6 and breaks on Render free tier.
+    """
+    database_url = os.getenv('DATABASE_URL')  # Read fresh — not cached at import time
+    if database_url and PSYCOPG2_AVAILABLE:
+        # Supabase session pooler requires SSL. Append sslmode if not already present.
+        if 'sslmode' not in database_url:
+            sep = '&' if '?' in database_url else '?'
+            database_url = f"{database_url}{sep}sslmode=require"
+        conn = psycopg2.connect(database_url, connect_timeout=10)
         return conn
     else:
         conn = sqlite3.connect(LOCAL_DB_PATH)
@@ -60,7 +70,7 @@ def execute_query(conn, query, params=None):
 
 def init_db():
     """Initialize database with schema. Non-fatal on error."""
-    if DATABASE_URL and PSYCOPG2_AVAILABLE:
+    if os.getenv('DATABASE_URL') and PSYCOPG2_AVAILABLE:
         print("🌱 Production Database (Supabase) detected.")
         try:
             conn = get_db_connection()

@@ -493,10 +493,39 @@ def api_delete_attendance(attendance_id):
 
 # ==================== HEALTH CHECK ====================
 
+@app.route('/api/debug', methods=['GET'])
+def debug_check():
+    """Debug endpoint — shows DB type and row counts."""
+    import os
+    db_url = os.getenv('DATABASE_URL', '')
+    info = {
+        'db_type': 'postgres' if db_url else 'sqlite',
+        'db_url_set': bool(db_url),
+        'db_url_host': db_url.split('@')[-1].split('/')[0] if '@' in db_url else None,
+    }
+    try:
+        conn = get_db_connection()
+        res = execute_query(conn, 'SELECT COUNT(*) as count FROM subjects')
+        info['subjects_count'] = res[0]['count'] if res else 0
+        res = execute_query(conn, 'SELECT COUNT(*) as count FROM timetable')
+        info['timetable_count'] = res[0]['count'] if res else 0
+        res = execute_query(conn, 'SELECT COUNT(*) as count FROM attendance')
+        info['attendance_count'] = res[0]['count'] if res else 0
+        # Sample a subgroup
+        res = execute_query(conn, 'SELECT DISTINCT subgroup FROM subjects LIMIT 5')
+        info['sample_subgroups'] = [r['subgroup'] for r in res] if res else []
+        conn.close()
+        info['db_connected'] = True
+    except Exception as e:
+        info['db_connected'] = False
+        info['db_error'] = str(e)
+    return jsonify(info)
+
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """Health check endpoint."""
     return jsonify({'status': 'healthy', 'message': 'Attendex API is running'})
+
 
 # ==================== RUN ====================
 

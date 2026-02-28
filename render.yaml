@@ -9,6 +9,8 @@ services:
     startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 60
     healthCheckPath: /api/health
     envVars:
+      - key: DATABASE_URL
+        sync: false  # Supabase Postgres connection string — set in Render dashboard
       - key: SUPABASE_JWT_SECRET
         sync: false  # Set in Render dashboard
       - key: NEXT_PUBLIC_SUPABASE_URL

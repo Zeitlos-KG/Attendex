@@ -10,8 +10,19 @@ import requests
 from functools import wraps
 from flask import request, jsonify
 
-SUPABASE_URL = os.getenv('NEXT_PUBLIC_SUPABASE_URL', '').rstrip('/')
-SUPABASE_ANON_KEY = os.getenv('NEXT_PUBLIC_SUPABASE_ANON_KEY', '')
+# Try multiple env var name conventions (Render uses SUPABASE_URL, frontend uses NEXT_PUBLIC_*)
+SUPABASE_URL = (
+    os.getenv('SUPABASE_URL') or
+    os.getenv('NEXT_PUBLIC_SUPABASE_URL') or
+    ''
+).rstrip('/')
+
+SUPABASE_API_KEY = (
+    os.getenv('SUPABASE_SERVICE_ROLE_KEY') or   # Highest privilege — set in Render
+    os.getenv('NEXT_PUBLIC_SUPABASE_ANON_KEY') or
+    os.getenv('SUPABASE_ANON_KEY') or
+    ''
+)
 
 
 def verify_supabase_token(token: str):
@@ -20,15 +31,16 @@ def verify_supabase_token(token: str):
     Returns the user dict if valid, None if invalid/expired.
     """
     if not SUPABASE_URL:
-        print("⚠️  NEXT_PUBLIC_SUPABASE_URL not set — cannot verify token")
+        print("⚠️  SUPABASE_URL not set — cannot verify token")
         return None
 
     try:
+        print(f"🔑 Verifying token via {SUPABASE_URL}/auth/v1/user")
         resp = requests.get(
             f"{SUPABASE_URL}/auth/v1/user",
             headers={
                 "Authorization": f"Bearer {token}",
-                "apikey": SUPABASE_ANON_KEY,
+                "apikey": SUPABASE_API_KEY,
             },
             timeout=5,
         )

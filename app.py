@@ -409,8 +409,9 @@ def api_mark_attendance():
             'date': date,
             'status': status
         }), 201
-    except sqlite3.IntegrityError:
-        return jsonify({'error': 'Invalid timetable_id'}), 400
+    except Exception as e:
+        print(f"❌ attendance insert error: {type(e).__name__}: {e}")
+        return jsonify({'error': f'Database error: {str(e)}'}), 500
 
 
 @app.route('/api/attendance/history', methods=['GET'])

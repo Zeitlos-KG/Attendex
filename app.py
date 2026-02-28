@@ -32,14 +32,20 @@ allowed_origins = [
 ]
 CORS(app, origins=allowed_origins)
 
-# Initialize database schema on startup (non-fatal)
-try:
-    init_db()
-except Exception as e:
-    print(f"⚠️  init_db failed (non-fatal): {e}")
+# Initialize database schema on startup.
+# For Postgres (Supabase): schema is managed manually — skip to avoid startup timeout.
+# For SQLite (local dev): apply schema as usual.
+if not os.getenv('DATABASE_URL'):
+    try:
+        init_db()
+    except Exception as e:
+        print(f"⚠️  init_db failed (non-fatal): {e}")
+else:
+    print("ℹ️  Supabase detected — skipping init_db (schema managed via Supabase dashboard)")
 
 # NOTE: Timetable seeding is handled at BUILD TIME only (render.yaml buildCommand).
 # Since data lives in Supabase (Postgres), it persists across deploys — no startup seed needed.
+
 
 # Register upload routes
 register_upload_routes(app, get_db_connection)

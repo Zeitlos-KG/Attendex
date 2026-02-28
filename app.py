@@ -353,8 +353,10 @@ def api_delete_timetable_entry(entry_id):
 @optional_auth
 def api_mark_attendance():
     """Mark attendance for a specific timetable entry on a specific date."""
-    user_id = getattr(request, 'user_id', None) or 'anonymous'
-        
+    user_id = getattr(request, 'user_id', None)
+    if not user_id:
+        return jsonify({'error': 'Authentication required'}), 401
+
     data = request.get_json()
     
     required_fields = ['timetable_id', 'date', 'status']

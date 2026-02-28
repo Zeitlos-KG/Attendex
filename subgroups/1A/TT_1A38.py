@@ -1,6 +1,15 @@
 SUBGROUP = "1A38"
 YEAR     = 1
 
+subjects = [
+    # (Full Name,                           Code)
+    ("Engineering Drawing & Design",        "UES102"),
+    ("Engineering Physics",                 "UPH013"),
+    ("Engineering Mathematics I",           "UMA023"),
+    ("Communicative English",               "UHU003"),
+    ("Engineering Chemistry",               "UES101"),
+]
+
 timetable = [
     # (CODE,    Day, Start,   End,     Type)
 

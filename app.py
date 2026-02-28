@@ -38,14 +38,8 @@ try:
 except Exception as e:
     print(f"⚠️  init_db failed (non-fatal): {e}")
 
-# Seed all subgroup timetables on every startup
-# This ensures the DB is ALWAYS populated even after Render wipes the filesystem
-try:
-    sys.path.insert(0, os.path.dirname(__file__))
-    from subgroups.seed_all import run as seed_subgroups
-    seed_subgroups()
-except Exception as e:
-    print(f"⚠️  Seeding failed (non-fatal): {e}")
+# NOTE: Timetable seeding is handled at BUILD TIME only (render.yaml buildCommand).
+# Since data lives in Supabase (Postgres), it persists across deploys — no startup seed needed.
 
 # Register upload routes
 register_upload_routes(app, get_db_connection)

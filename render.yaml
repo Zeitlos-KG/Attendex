@@ -6,7 +6,8 @@ services:
     name: attendex-api
     runtime: python
     buildCommand: pip install -r requirements.txt && python subgroups/seed_all.py
-    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 60
+    healthCheckPath: /api/health
     envVars:
       - key: SUPABASE_JWT_SECRET
         sync: false  # Set in Render dashboard

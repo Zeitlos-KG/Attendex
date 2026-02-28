@@ -13,11 +13,29 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 
-def run():
+def _already_seeded():
+    """Returns True if the DB already has subjects data."""
+    try:
+        from db import get_db_connection, execute_query
+        conn = get_db_connection()
+        rows = execute_query(conn, "SELECT COUNT(*) as count FROM subjects")
+        conn.close()
+        count = rows[0]['count'] if rows else 0
+        return count > 0
+    except Exception:
+        return False  # If we can't check, seed anyway
+
+
+def run(force=False):
     from db import init_db, get_db_connection
 
     print("🌱 Seeding subgroup timetables...")
     init_db()
+
+    # ⚡ Skip seeding if data already exists (only seed on fresh DB / after wipe)
+    if not force and _already_seeded():
+        print("   ✅ DB already seeded — skipping. Run seed_all.py directly or use force=True to re-seed.")
+        return
 
     FOLDER   = os.path.dirname(os.path.abspath(__file__))
     # Recursively find all TT_*.py files (in subfolders like 1A/, 1B/, etc. too)

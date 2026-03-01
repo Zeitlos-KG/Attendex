@@ -439,8 +439,15 @@ def api_get_attendance_history():
     '''
     records = execute_query(conn, query, (user_id,))
     conn.close()
-    
-    return jsonify([dict(row) for row in records])
+
+    # Serialize rows, converting datetime.date → "YYYY-MM-DD" string
+    result = []
+    for row in records:
+        r = dict(row)
+        if r.get('date') is not None:
+            r['date'] = str(r['date'])
+        result.append(r)
+    return jsonify(result)
 
 @app.route('/api/attendance/delete', methods=['POST'])
 @optional_auth
@@ -576,8 +583,10 @@ def api_get_analytics():
         })
 
     # --- 4. Build daily history (for the line chart) ---
+    # str() converts psycopg2 datetime.date objects → "YYYY-MM-DD" string
+    # so the frontend date comparison works correctly.
     history = [
-        {'date': rec['date'], 'status': rec['status']}
+        {'date': str(rec['date']), 'status': rec['status']}
         for rec in all_records
     ]
 

@@ -210,9 +210,32 @@ export default function LandingPage() {
   }
 
   if (checkingAuth) {
+    // Don't block the full page — show a minimal loading shell instead.
+    // The header and hero will update once auth resolves.
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-foreground"></div>
+      <div className="min-h-screen bg-background text-foreground flex flex-col">
+        {/* Header skeleton */}
+        <header className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-background/80 backdrop-blur-xl">
+          <div className="mx-auto max-w-6xl px-6">
+            <div className="flex h-16 items-center justify-between">
+              <span className="text-xl font-bold bg-gradient-to-r from-white via-gray-400 to-white bg-[length:200%_auto] animate-[gradient_6s_linear_infinite] bg-clip-text text-transparent tracking-tight">
+                Attendex
+              </span>
+              <div className="h-9 w-20 rounded-md bg-muted/40 animate-pulse" />
+            </div>
+          </div>
+        </header>
+        {/* Hero skeleton — show content outline immediately */}
+        <main className="flex-1 pt-16">
+          <section className="px-6 py-24 lg:py-32">
+            <div className="mx-auto max-w-6xl max-w-3xl space-y-6">
+              <div className="h-4 w-40 rounded bg-muted/30 animate-pulse" />
+              <div className="h-16 w-2/3 rounded-lg bg-muted/20 animate-pulse" />
+              <div className="h-6 w-1/2 rounded bg-muted/20 animate-pulse" />
+              <div className="h-12 w-36 rounded-lg bg-muted/30 animate-pulse" />
+            </div>
+          </section>
+        </main>
       </div>
     )
   }

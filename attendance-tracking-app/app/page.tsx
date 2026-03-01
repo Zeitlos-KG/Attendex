@@ -24,6 +24,7 @@ import {
   Github,
 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { clearSubgroupCache } from "@/lib/subgroup-utils"
 
 // Reads ?openAuth=true from the URL and fires a callback.
 // Must be a separate component so useSearchParams is inside a Suspense boundary.
@@ -194,6 +195,7 @@ export default function LandingPage() {
   }
 
   const handleLogout = async () => {
+    clearSubgroupCache()
     await supabase.auth.signOut()
     setIsLoggedIn(false)
     setUserName("")

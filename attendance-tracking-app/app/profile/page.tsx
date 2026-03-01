@@ -23,6 +23,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { User, Mail, GraduationCap, Users, AlertTriangle, Check, LogOut } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { clearSubgroupCache } from "@/lib/subgroup-utils"
 
 // Subgroups for each year (you can customize this)
 // Fetched from API
@@ -172,6 +173,7 @@ export default function ProfilePage() {
             if (error) throw error
 
             setOriginalSubgroup(profile.subgroup)
+            clearSubgroupCache() // Bust cache so next page load re-fetches updated subgroup
             setShowSuccess(true)
             setTimeout(() => setShowSuccess(false), 3000)
         } catch (error) {
@@ -329,6 +331,7 @@ export default function ProfilePage() {
                             {/* Sign Out Button */}
                             <Button
                                 onClick={async () => {
+                                    clearSubgroupCache()
                                     await supabase.auth.signOut()
                                     router.push('/')
                                 }}

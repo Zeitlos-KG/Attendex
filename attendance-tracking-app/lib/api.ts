@@ -155,4 +155,22 @@ export const api = {
     });
     if (!res.ok) throw new Error('Failed to delete attendance');
   },
+
+  // Analytics — single batch call replacing N+1 subject requests
+  getAnalytics: async (subgroup: string): Promise<{
+    subjects: Array<{
+      id: number;
+      name: string;
+      code: string;
+      total_weight: number;
+      attended_weight: number;
+      percentage: number;
+    }>;
+    attendance_history: Array<{ date: string; status: string }>;
+  }> => {
+    const url = `${API_URL}/analytics?subgroup=${encodeURIComponent(subgroup)}`;
+    const res = await fetch(url, { headers: await getAuthHeaders() });
+    if (!res.ok) throw new Error('Failed to fetch analytics');
+    return res.json();
+  },
 };

@@ -30,22 +30,36 @@ export default function MarkAttendancePage() {
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
+  // Load timetable + today's attendance together in one shot.
+  // Keeping them sequential (timetable first, then attendance) ensures
+  // the Supabase auth token is fully ready before we fetch attendance,
+  // which prevents the "anonymous" request bug that returns empty records.
   useEffect(() => {
-    async function fetchData() {
+    async function fetchAll() {
       try {
         const subgroup = await getNormalizedSubgroup()
 
+        if (!subgroup) {
+          setError('Please set your subgroup in profile to see your classes.')
+          setLoading(false)
+          return
+        }
+
         const [subjectsData, timetableData] = await Promise.all([
-          subgroup ? api.getSubjects(subgroup) : Promise.resolve([]),
-          subgroup ? api.getTimetable(subgroup) : Promise.resolve([])
+          api.getSubjects(subgroup),
+          api.getTimetable(subgroup),
         ])
         setSubjects(subjectsData)
         setTimetable(timetableData)
 
-        if (!subgroup) {
-          setError('Please set your subgroup in profile to see your classes.')
-        }
-
+        // Now fetch attendance — auth is guaranteed ready by this point
+        const allAttendance = await api.getAttendanceHistory()
+        const dateStr = selectedDate.toISOString().split('T')[0]
+        const newMarked = new Map<number, 'Present' | 'Absent'>()
+        allAttendance
+          .filter(r => r.date === dateStr)
+          .forEach(r => newMarked.set(r.timetable_id, r.status))
+        setMarkedClasses(newMarked)
       } catch (err) {
         setError('Failed to load data')
         console.error(err)
@@ -54,34 +68,33 @@ export default function MarkAttendancePage() {
       }
     }
 
-    fetchData()
+    fetchAll()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Load attendance for selected date
+  // When the user navigates to a different date, re-fetch attendance for that day.
+  // (Skips the very first render since `loading` is still true.)
   useEffect(() => {
-    async function loadAttendanceForDate() {
+    if (loading) return          // initial load handles this
+    if (timetable.length === 0) return
+
+    async function refetchForDate() {
       try {
         const allAttendance = await api.getAttendanceHistory()
         const dateStr = selectedDate.toISOString().split('T')[0]
-
-        // Filter attendance for selected date and build map
-        const newMarkedClasses = new Map<number, 'Present' | 'Absent'>()
+        const newMarked = new Map<number, 'Present' | 'Absent'>()
         allAttendance
-          .filter(record => record.date === dateStr)
-          .forEach(record => {
-            newMarkedClasses.set(record.timetable_id, record.status)
-          })
-
-        setMarkedClasses(newMarkedClasses)
+          .filter(r => r.date === dateStr)
+          .forEach(r => newMarked.set(r.timetable_id, r.status))
+        setMarkedClasses(newMarked)
       } catch (err) {
         console.error('Failed to load attendance for date:', err)
       }
     }
 
-    if (timetable.length > 0) {
-      loadAttendanceForDate()
-    }
-  }, [selectedDate, timetable.length])
+    refetchForDate()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate])
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString("en-US", {

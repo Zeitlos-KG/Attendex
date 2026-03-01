@@ -499,6 +499,93 @@ def api_delete_attendance(attendance_id):
     conn.close()
     return jsonify({'message': 'Attendance record deleted successfully'})
 
+# ==================== ANALYTICS API (BATCH) ====================
+
+@app.route('/api/analytics', methods=['GET'])
+@optional_auth
+def api_get_analytics():
+    """
+    Batch endpoint: returns per-subject attendance stats + full history in one call.
+    Replaces the old pattern of N separate /api/attendance/subject/:id requests.
+    """
+    user_id = getattr(request, 'user_id', None)
+    subgroup = request.args.get('subgroup')
+
+    if not subgroup:
+        return jsonify({'error': 'subgroup is required'}), 400
+
+    conn = get_db_connection()
+
+    try:
+        # --- 1. Get all subjects for this subgroup ---
+        subjects = execute_query(conn,
+            'SELECT id, name, code FROM subjects WHERE subgroup = ? ORDER BY name',
+            (subgroup,)
+        )
+
+        # --- 2. Get all attendance records for this user + subgroup in ONE query ---
+        attendance_query = '''
+            SELECT a.status, a.date, t.type, t.weight_override, t.subject_id
+            FROM attendance a
+            JOIN timetable t ON a.timetable_id = t.id
+            JOIN subjects s ON t.subject_id = s.id
+            WHERE s.subgroup = ? AND a.user_id = ?
+        '''
+        params = [subgroup, user_id or 'anonymous']
+        all_records = execute_query(conn, attendance_query, params)
+        conn.close()
+    except Exception as e:
+        conn.close()
+        print(f"Error in /api/analytics: {e}")
+        return jsonify({'error': str(e)}), 500
+
+    # --- 3. Build per-subject stats in Python (no extra DB calls) ---
+    weights = {'Class': 1.0, 'Tutorial': 0.5, 'Lab': 2.0}
+
+    def get_weight(record):
+        override = record.get('weight_override') if hasattr(record, 'get') else record['weight_override']
+        if override is not None:
+            return float(override)
+        return weights.get(record['type'], 1.0)
+
+    # Group by subject_id
+    subject_stats = {}
+    for rec in all_records:
+        sid = rec['subject_id']
+        if sid not in subject_stats:
+            subject_stats[sid] = {'total_weight': 0.0, 'attended_weight': 0.0}
+        w = get_weight(rec)
+        subject_stats[sid]['total_weight'] += w
+        if rec['status'] == 'Present':
+            subject_stats[sid]['attended_weight'] += w
+
+    subjects_result = []
+    for subj in subjects:
+        sid = subj['id']
+        stats = subject_stats.get(sid, {'total_weight': 0.0, 'attended_weight': 0.0})
+        total = stats['total_weight']
+        attended = stats['attended_weight']
+        pct = round((attended / total * 100), 2) if total > 0 else 0.0
+        subjects_result.append({
+            'id': sid,
+            'name': subj['name'],
+            'code': subj['code'],
+            'total_weight': total,
+            'attended_weight': attended,
+            'percentage': pct,
+        })
+
+    # --- 4. Build daily history (for the line chart) ---
+    history = [
+        {'date': rec['date'], 'status': rec['status']}
+        for rec in all_records
+    ]
+
+    return jsonify({
+        'subjects': subjects_result,
+        'attendance_history': history,
+    })
+
 # ==================== HEALTH CHECK ====================
 
 @app.route('/api/debug', methods=['GET'])

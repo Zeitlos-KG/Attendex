@@ -16,16 +16,15 @@ build/
 .env.*.local
 *.env
 
-# Database files - local only, not for production
+# Database files - local only
 *.db
 *.sqlite
 *.sqlite3
 
-# Uploads directory - user-uploaded files
+# Local dev / unfinished tooling
 uploads/
-
-# Generated timetable import scripts - run locally, not tracked
-timetable_importer/generated/
+archive/
+timetable_importer/
 
 # Node / Next.js
 node_modules/

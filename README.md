@@ -1,6 +1,6 @@
 # Attendex
 
-> Automated attendance tracking for students at Thapar Institute of Engineering and Technology (TIET).
+> Attendance tracking for students at Thapar Institute of Engineering and Technology (TIET).
 
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-attendex--tiet.vercel.app-black?style=flat-square&logo=vercel)](https://attendex-tiet.vercel.app)
 [![Backend](https://img.shields.io/badge/API-Render-46E3B7?style=flat-square&logo=render)](https://attendex-api.onrender.com/api/health)
@@ -13,12 +13,12 @@
 
 Attendex lets TIET students track their class attendance in real time. It knows your subgroup's timetable, lets you mark attendance after each class, and calculates how close you are to the 75% cutoff — by subject and overall.
 
-**Key features:**
-- 📅 Personalized timetable based on your subgroup (e.g. 1A82, 1B31)
+**Features**
+- 📅 Personalized timetable per subgroup (e.g. `1A82`, `1B31`)
 - ✅ One-tap attendance marking per class slot
-- 📊 Per-subject attendance % with weighted scoring (Labs count 2×, Tutorials 0.5×)
-- 🔔 "Classes needed to reach 75%" calculator
-- 🔐 Google Sign-In via Supabase Auth (@thapar.edu only)
+- 📊 Per-subject attendance % with weighted scoring (Labs 2×, Tutorials 0.5×)
+- 📈 Analytics dashboard with daily trend chart and subject-wise comparison
+- 🔐 Google Sign-In via Supabase Auth (`@thapar.edu` only)
 
 ---
 
@@ -26,10 +26,10 @@ Attendex lets TIET students track their class attendance in real time. It knows 
 
 | Layer | Technology |
 |---|---|
-| **Frontend** | Next.js 16, Tailwind CSS, Radix UI, shadcn/ui |
-| **Backend API** | Flask 3, Gunicorn, SQLite |
-| **Auth & DB** | Supabase (Postgres + Auth) |
-| **Deployment** | Vercel (frontend) · Render (backend API) |
+| **Frontend** | Next.js 16, Tailwind CSS v4, Radix UI / shadcn-ui |
+| **Backend API** | Flask 3, Gunicorn |
+| **Auth & Database** | Supabase (Postgres + Auth) |
+| **Deployment** | Vercel (frontend) · Render (backend) |
 
 ---
 
@@ -38,26 +38,23 @@ Attendex lets TIET students track their class attendance in real time. It knows 
 ```
 Attendex/
 ├── attendance-tracking-app/    # Next.js frontend
-│   ├── app/                    # Pages (dashboard, timetable, analytics, etc.)
-│   ├── components/             # Shared UI components
-│   └── lib/                    # Supabase client, API helpers, utils
+│   ├── app/                    # Pages (dashboard, timetable, analytics, mark-attendance, profile)
+│   ├── components/             # Shared UI components (Navbar, AuthModals, charts)
+│   └── lib/                    # Supabase client, API helpers, subgroup utils
 │
-├── subgroups/                  # Subgroup timetable data & auto-seeding engine
-│   ├── 1A/                     # All 54 Pool A subgroups (1A11-1A95)
-│   ├── 1B/                     # Pool B subgroups (e.g. 1B28)
-│   ├── seed_all.py             # Auto-seeds EVERYTHING recursively on startup/deploy
-│   └── skeleton.py             # Copy this to add a new subgroup
+├── subgroups/                  # Timetable data + seeding engine
+│   ├── 1A/                     # Pool A subgroups (1A11 – 1A95)
+│   ├── 1B/                     # Pool B subgroups
+│   ├── seed_all.py             # Auto-seeds all subgroups on backend startup
+│   └── skeleton.py             # Template for adding a new subgroup
 │
-├── docs/                       # Setup, deployment & resource guides
-│   ├── DEPLOYMENT.md           # Main deployment guide
-│   └── resources/              # PDFs/Excels for reference
+├── supabase/                   # SQL migration scripts
+├── docs/                       # Deployment guides
 │
-├── supabase/                   # SQL migration & setup scripts
-├── app.py                      # Flask API entry point (hardened with @require_auth)
-├── db.py                       # SQLite / stats helpers
-├── auth_middleware.py          # JWT verification & user isolation
-├── schema_new.sql              # Database schema
-├── render.yaml                 # Render deployment (auto-seeds subgroups)
+├── app.py                      # Flask API (auth-protected endpoints)
+├── auth_middleware.py          # Supabase JWT verification
+├── db.py                       # Database helpers & attendance stats
+├── render.yaml                 # Render deployment config
 └── requirements.txt            # Python dependencies
 ```
 
@@ -70,71 +67,44 @@ Attendex/
 - Python 3.11+
 - A [Supabase](https://supabase.com) project
 
-### 1 — Backend (Flask)
+### Backend (Flask)
 ```bash
-# Install dependencies
 pip install -r requirements.txt
-
-# Copy and fill in environment variables
-cp .env.template .env
-# Edit .env and add your Supabase keys
-
-# Start Flask dev server
-python app.py
-# API runs at http://localhost:5000 (seeds subgroups on startup)
+cp .env.template .env          # fill in your Supabase keys
+python app.py                  # → http://localhost:5000
 ```
 
-### 2 — Frontend (Next.js)
+### Frontend (Next.js)
 ```bash
 cd attendance-tracking-app
-
-# Install dependencies
 npm install
-
-# Copy and fill in environment variables
-cp .env.example .env.local
-# Edit .env.local and add your Supabase keys + API URL
-
-# Start dev server
-npm run dev
-# App runs at http://localhost:3000
+cp .env.example .env.local     # fill in Supabase keys + API URL
+npm run dev                    # → http://localhost:3000
 ```
 
-### 3 — How to add a new Subgroup
+### Adding a new subgroup
 ```bash
-# 1. Copy the skeleton
-cp subgroups/skeleton.py subgroups/1B/TT_1B31.py
-
-# 2. Fill in the timetable data in the file
-# 3. Push and redeploy Render — it auto-appears everywhere!
+cp subgroups/skeleton.py subgroups/1B/TT_1B99.py
+# Fill in the timetable data, then push and redeploy Render
 ```
 
 ---
 
 ## Deployment
 
-See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for full setup.
+**Frontend → Vercel**
+Connect the `attendance-tracking-app/` subfolder. Set these env vars in Vercel:
 
-**Quick summary:**
-- **Frontend → Vercel**: Connect the `attendance-tracking-app/` subfolder. Set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `NEXT_PUBLIC_API_URL` in Vercel env vars.
-- **Backend → Render**: Uses `render.yaml`. Set `SUPABASE_JWT_SECRET` in Render env vars.
+| Variable | Description |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Your Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon/public key |
+| `NEXT_PUBLIC_API_URL` | Render backend URL |
 
----
+**Backend → Render**
+Uses `render.yaml`. Set `SUPABASE_JWT_SECRET` in Render env vars (from Supabase → Settings → API → JWT Secret).
 
-## Environment Variables
-
-| Variable | Where | Description |
-|---|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | Vercel | Your Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Vercel | Supabase anon/public key |
-| `NEXT_PUBLIC_API_URL` | Vercel | Render backend URL (e.g. `https://attendex-api.onrender.com`) |
-| `SUPABASE_JWT_SECRET` | Render | From Supabase → Settings → API → JWT Secret |
-
----
-
-## Contributing / Adding Subgroups
-
-To add support for a new subgroup, see [`timetable_importer/README.md`](timetable_importer/README.md).
+See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for the full guide.
 
 ---
 

@@ -50,7 +50,7 @@ begin
   );
   return new;
 end;
-$$ language plpgsql security definer;
+$$ language plpgsql security definer set search_path = public, '';
 
 -- Step 5: Create trigger to run the function
 -- This automatically creates a profile when someone signs up

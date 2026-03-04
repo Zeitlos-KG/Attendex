@@ -15,6 +15,7 @@ import {
   TrendingUp,
   Linkedin,
   Github,
+  MessageSquare,
 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { clearSubgroupCache } from "@/lib/subgroup-utils"
@@ -434,6 +435,28 @@ export default function LandingPage() {
           </section>
         )}
       </main>
+
+      {/* Feedback Section */}
+      <section className="px-6 py-20 border-t border-border">
+        <div className="mx-auto max-w-6xl text-center">
+          <div className="inline-flex items-center justify-center h-10 w-10 rounded-md border border-border mb-6">
+            <MessageSquare className="h-5 w-5" />
+          </div>
+          <h2 className="text-2xl sm:text-3xl font-medium tracking-tight mb-3">
+            Got feedback?
+          </h2>
+          <p className="text-muted-foreground text-base mb-8 max-w-sm mx-auto">
+            Found a bug, have a suggestion, or want your subgroup added? I'd love to hear from you.
+          </p>
+          <a
+            href="mailto:attendex.tiet@gmail.com?subject=Attendex Feedback"
+            className="inline-flex items-center gap-2 h-11 px-6 rounded-md border border-border bg-muted/30 hover:bg-muted/60 text-sm font-medium transition-colors"
+          >
+            <MessageSquare className="h-4 w-4" />
+            attendex.tiet@gmail.com
+          </a>
+        </div>
+      </section>
 
       {/* Footer */}
       <footer className="border-t border-border px-6 py-8">

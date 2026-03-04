@@ -75,5 +75,23 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
--- Note: subjects and timetable have RLS disabled (set via Supabase dashboard)
--- so no policies needed for them — the Flask backend can read/write freely.
+-- Enable RLS on subjects and timetable.
+-- Authenticated users can read; service_role can write (see rls_patch.sql).
+ALTER TABLE public.subjects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.timetable ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  CREATE POLICY "Authenticated users can read subjects"
+    ON public.subjects FOR SELECT
+    TO authenticated
+    USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "Authenticated users can read timetable"
+    ON public.timetable FOR SELECT
+    TO authenticated
+    USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;

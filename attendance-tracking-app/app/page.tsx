@@ -1,10 +1,11 @@
 ﻿"use client"
 
-import React from "react"
+import React, { useRef } from "react"
 import dynamic from "next/dynamic"
 import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
+import emailjs from "@emailjs/browser"
 import {
   ArrowRight,
   User,
@@ -16,6 +17,8 @@ import {
   Linkedin,
   Github,
   MessageSquare,
+  Send,
+  CheckCircle,
 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { clearSubgroupCache } from "@/lib/subgroup-utils"
@@ -53,6 +56,13 @@ export default function LandingPage() {
   const [userName, setUserName] = useState("")
   const router = useRouter()
   const supabase = createClient()
+
+  // Feedback form
+  const feedbackFormRef = useRef<HTMLFormElement>(null)
+  const [feedbackName, setFeedbackName] = useState("")
+  const [feedbackEmail, setFeedbackEmail] = useState("")
+  const [feedbackMessage, setFeedbackMessage] = useState("")
+  const [feedbackStatus, setFeedbackStatus] = useState<"idle" | "sending" | "sent" | "error">("idle")
 
   // Check if user is already logged in
   useEffect(() => {
@@ -192,6 +202,27 @@ export default function LandingPage() {
       }
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleFeedback = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!feedbackMessage.trim()) return
+    setFeedbackStatus("sending")
+    try {
+      await emailjs.sendForm(
+        process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID!,
+        process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID!,
+        feedbackFormRef.current!,
+        { publicKey: process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY! }
+      )
+      setFeedbackStatus("sent")
+      setFeedbackName("")
+      setFeedbackEmail("")
+      setFeedbackMessage("")
+    } catch (err) {
+      console.error("EmailJS error:", err)
+      setFeedbackStatus("error")
     }
   }
 
@@ -438,23 +469,86 @@ export default function LandingPage() {
 
       {/* Feedback Section */}
       <section className="px-6 py-20 border-t border-border">
-        <div className="mx-auto max-w-6xl text-center">
-          <div className="inline-flex items-center justify-center h-10 w-10 rounded-md border border-border mb-6">
-            <MessageSquare className="h-5 w-5" />
+        <div className="mx-auto max-w-6xl">
+          <div className="max-w-xl mx-auto text-center">
+            <div className="inline-flex items-center justify-center h-10 w-10 rounded-md border border-border mb-6">
+              <MessageSquare className="h-5 w-5" />
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-medium tracking-tight mb-3">
+              Got feedback?
+            </h2>
+            <p className="text-muted-foreground text-base mb-8">
+              Found a bug, have a suggestion, or want your subgroup added? Drop a message — it goes straight to my inbox.
+            </p>
           </div>
-          <h2 className="text-2xl sm:text-3xl font-medium tracking-tight mb-3">
-            Got feedback?
-          </h2>
-          <p className="text-muted-foreground text-base mb-8 max-w-sm mx-auto">
-            Found a bug, have a suggestion, or want your subgroup added? I'd love to hear from you.
-          </p>
-          <a
-            href="mailto:attendex.tiet@gmail.com?subject=Attendex Feedback"
-            className="inline-flex items-center gap-2 h-11 px-6 rounded-md border border-border bg-muted/30 hover:bg-muted/60 text-sm font-medium transition-colors"
-          >
-            <MessageSquare className="h-4 w-4" />
-            attendex.tiet@gmail.com
-          </a>
+
+          {feedbackStatus === "sent" ? (
+            <div className="max-w-xl mx-auto flex flex-col items-center gap-3 py-8">
+              <CheckCircle className="h-10 w-10 text-foreground" />
+              <p className="text-lg font-medium">Message sent!</p>
+              <p className="text-muted-foreground text-sm">Thanks — I'll get back to you soon.</p>
+              <button
+                onClick={() => setFeedbackStatus("idle")}
+                className="mt-2 text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground transition-colors"
+              >
+                Send another
+              </button>
+            </div>
+          ) : (
+            <form
+              ref={feedbackFormRef}
+              onSubmit={handleFeedback}
+              className="max-w-xl mx-auto space-y-3"
+            >
+              <div className="grid grid-cols-2 gap-3">
+                <input
+                  type="text"
+                  name="from_name"
+                  placeholder="Your name"
+                  value={feedbackName}
+                  onChange={e => setFeedbackName(e.target.value)}
+                  className="h-11 w-full rounded-md border border-border bg-muted/20 px-4 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-border transition"
+                />
+                <input
+                  type="email"
+                  name="from_email"
+                  placeholder="Your email (optional)"
+                  value={feedbackEmail}
+                  onChange={e => setFeedbackEmail(e.target.value)}
+                  className="h-11 w-full rounded-md border border-border bg-muted/20 px-4 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-border transition"
+                />
+              </div>
+              <textarea
+                name="message"
+                placeholder="Your message..."
+                required
+                rows={4}
+                value={feedbackMessage}
+                onChange={e => setFeedbackMessage(e.target.value)}
+                className="w-full rounded-md border border-border bg-muted/20 px-4 py-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-border transition resize-none"
+              />
+              {feedbackStatus === "error" && (
+                <p className="text-sm text-red-400">Something went wrong. Try emailing attendex.tiet@gmail.com directly.</p>
+              )}
+              <button
+                type="submit"
+                disabled={feedbackStatus === "sending" || !feedbackMessage.trim()}
+                className="inline-flex items-center gap-2 h-11 px-6 rounded-md bg-foreground text-background text-sm font-medium hover:bg-foreground/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              >
+                {feedbackStatus === "sending" ? (
+                  <>
+                    <span className="h-4 w-4 rounded-full border-2 border-background/30 border-t-background animate-spin" />
+                    Sending…
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4" />
+                    Send Feedback
+                  </>
+                )}
+              </button>
+            </form>
+          )}
         </div>
       </section>
 

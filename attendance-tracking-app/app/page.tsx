@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import React, { useRef } from "react"
 import dynamic from "next/dynamic"
@@ -405,7 +405,7 @@ export default function LandingPage() {
                       disabled={isLoading}
                       className="h-12 px-8 border-border hover:bg-muted/50 font-medium group"
                     >
-                      Try as Guest
+                      Take a Tour
                       <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
                     </Button>
                   </div>

@@ -3,7 +3,7 @@ import { updateSession } from '@/lib/supabase/middleware'
 
 // Public routes that don't need any auth check.
 // Skipping getUser() here saves ~300-800ms on the initial landing page load.
-const PUBLIC_ROUTES = ['/', '/login', '/auth']
+const PUBLIC_ROUTES = ['/', '/login', '/auth', '/guest-tour']
 
 export async function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl

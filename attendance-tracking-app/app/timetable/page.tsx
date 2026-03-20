@@ -7,6 +7,8 @@ import { ChevronLeft, ChevronRight, Clock, Calendar as CalendarIcon, Home } from
 import { api, type TimetableEntry } from "@/lib/api"
 import { getNormalizedSubgroup } from "@/lib/subgroup-utils"
 import { getDayStatus, getTimetableDayOfWeek, getDayTypeColors, type DayStatus } from "@/lib/academic-calendar"
+import { useGuestMode } from "@/lib/guest-context"
+import { GUEST_TIMETABLE } from "@/lib/guest-data"
 
 const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 const shortDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
@@ -25,9 +27,15 @@ export default function TimetablePage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [dayStatus, setDayStatus] = useState<DayStatus | null>(null)
+  const { isGuest } = useGuestMode()
 
   useEffect(() => {
     async function fetchTimetable() {
+      if (isGuest) {
+        setTimetable(GUEST_TIMETABLE)
+        setLoading(false)
+        return
+      }
       try {
         const subgroup = await getNormalizedSubgroup()
 
@@ -48,7 +56,7 @@ export default function TimetablePage() {
     }
 
     fetchTimetable()
-  }, [])
+  }, [isGuest])
 
   // Update day status when date changes
   useEffect(() => {

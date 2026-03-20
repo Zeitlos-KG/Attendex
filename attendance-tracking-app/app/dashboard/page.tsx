@@ -8,14 +8,22 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { api, type DashboardStats } from "@/lib/api"
 import { getNormalizedSubgroup } from "@/lib/subgroup-utils"
+import { useGuestMode } from "@/lib/guest-context"
+import { GUEST_DASHBOARD_STATS } from "@/lib/guest-data"
 
 export default function DashboardPage() {
   const router = useRouter()
+  const { isGuest } = useGuestMode()
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (isGuest) {
+      setStats(GUEST_DASHBOARD_STATS)
+      setLoading(false)
+      return
+    }
     async function fetchDashboard() {
       try {
         const subgroup = await getNormalizedSubgroup()
@@ -35,7 +43,8 @@ export default function DashboardPage() {
     }
 
     fetchDashboard()
-  }, [router])
+  }, [router, isGuest])
+
 
 
 

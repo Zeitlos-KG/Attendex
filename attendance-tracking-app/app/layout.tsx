@@ -2,6 +2,8 @@ import React from "react"
 import type { Metadata } from 'next'
 import { Space_Grotesk } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import { GuestProvider } from '@/lib/guest-context'
+import { GuestBanner } from '@/components/guest-banner'
 import './globals.css'
 
 const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], variable: "--font-space" });
@@ -37,9 +39,13 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${spaceGrotesk.className} antialiased`}>
-        {children}
+        <GuestProvider>
+          <GuestBanner />
+          {children}
+        </GuestProvider>
         <Analytics />
       </body>
     </html>
   )
 }
+

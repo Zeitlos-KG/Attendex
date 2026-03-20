@@ -7,6 +7,8 @@ import { useState, useEffect } from "react"
 import { Check, X, Calendar, Clock, ChevronLeft, ChevronRight } from "lucide-react"
 import { api, type Subject, type TimetableEntry, type AttendanceRecord } from "@/lib/api"
 import { getNormalizedSubgroup } from "@/lib/subgroup-utils"
+import { useGuestMode } from "@/lib/guest-context"
+import { GUEST_TIMETABLE, GUEST_SUBJECTS } from "@/lib/guest-data"
 
 type ClassType = "Class" | "Tutorial" | "Lab"
 
@@ -29,6 +31,7 @@ export default function MarkAttendancePage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const { isGuest } = useGuestMode()
 
   // Load timetable + today's attendance together in one shot.
   // Keeping them sequential (timetable first, then attendance) ensures
@@ -36,6 +39,13 @@ export default function MarkAttendancePage() {
   // which prevents the "anonymous" request bug that returns empty records.
   useEffect(() => {
     async function fetchAll() {
+      // Guest mode: use real 1A11 data, no API calls
+      if (isGuest) {
+        setSubjects(GUEST_SUBJECTS)
+        setTimetable(GUEST_TIMETABLE)
+        setLoading(false)
+        return
+      }
       try {
         const subgroup = await getNormalizedSubgroup()
 
@@ -70,7 +80,7 @@ export default function MarkAttendancePage() {
 
     fetchAll()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [isGuest])
 
   // When the user navigates to a different date, re-fetch attendance for that day.
   // (Skips the very first render since `loading` is still true.)
@@ -115,10 +125,11 @@ export default function MarkAttendancePage() {
     setSaving(true)
     try {
       const status = present ? 'Present' : 'Absent'
-      const dateStr = selectedDate.toISOString().split('T')[0]
-
-      await api.markAttendance(timetableId, dateStr, status)
-
+      // Guest mode: local state only
+      if (!isGuest) {
+        const dateStr = selectedDate.toISOString().split('T')[0]
+        await api.markAttendance(timetableId, dateStr, status)
+      }
       setMarkedClasses(prev => new Map(prev).set(timetableId, status))
     } catch (err) {
       console.error('Failed to mark attendance:', err)
@@ -131,10 +142,11 @@ export default function MarkAttendancePage() {
   const unmarkAttendance = async (timetableId: number) => {
     setSaving(true)
     try {
-      const dateStr = selectedDate.toISOString().split('T')[0]
-
-      await api.deleteAttendance(timetableId, dateStr)
-
+      // Guest mode: local state only
+      if (!isGuest) {
+        const dateStr = selectedDate.toISOString().split('T')[0]
+        await api.deleteAttendance(timetableId, dateStr)
+      }
       setMarkedClasses(prev => {
         const newMap = new Map(prev)
         newMap.delete(timetableId)

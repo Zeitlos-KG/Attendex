@@ -61,6 +61,7 @@ export default function LandingPage() {
   const feedbackFormRef = useRef<HTMLFormElement>(null)
   const [feedbackName, setFeedbackName] = useState("")
   const [feedbackEmail, setFeedbackEmail] = useState("")
+  const [feedbackType, setFeedbackType] = useState("General Feedback")
   const [feedbackMessage, setFeedbackMessage] = useState("")
   const [feedbackStatus, setFeedbackStatus] = useState<"idle" | "sending" | "sent" | "error">("idle")
 
@@ -219,10 +220,23 @@ export default function LandingPage() {
       setFeedbackStatus("sent")
       setFeedbackName("")
       setFeedbackEmail("")
+      setFeedbackType("General Feedback")
       setFeedbackMessage("")
     } catch (err) {
       console.error("EmailJS error:", err)
       setFeedbackStatus("error")
+    }
+  }
+
+  const handleGuestEntry = async () => {
+    setIsLoading(true)
+    try {
+      await fetch('/api/guest', { method: 'POST' })
+      router.push('/guest-tour')
+    } catch (err) {
+      console.error('Guest mode error:', err)
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -375,14 +389,26 @@ export default function LandingPage() {
                   <p className="text-xl text-muted-foreground leading-relaxed mb-10 max-w-xl">
                     The modern way to track your college attendance. Simple, fast, and designed for students who want to stay on top of their game.
                   </p>
-                  <Button
-                    size="lg"
-                    onClick={() => setShowAuthModal(true)}
-                    className="h-12 px-8 bg-foreground text-background hover:bg-foreground/90 font-medium group"
-                  >
-                    Get Started
-                    <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
-                  </Button>
+                  <div className="flex flex-wrap gap-3">
+                    <Button
+                      size="lg"
+                      onClick={() => setShowAuthModal(true)}
+                      className="h-12 px-8 bg-foreground text-background hover:bg-foreground/90 font-medium group"
+                    >
+                      Get Started
+                      <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+                    </Button>
+                    <Button
+                      size="lg"
+                      variant="outline"
+                      onClick={handleGuestEntry}
+                      disabled={isLoading}
+                      className="h-12 px-8 border-border hover:bg-muted/50 font-medium group"
+                    >
+                      Try as Guest
+                      <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+                    </Button>
+                  </div>
                 </>
               )}
             </div>
@@ -518,6 +544,16 @@ export default function LandingPage() {
                   className="h-11 w-full rounded-md border border-border bg-muted/20 px-4 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-border transition"
                 />
               </div>
+              <select
+                name="feedback_type"
+                value={feedbackType}
+                onChange={e => setFeedbackType(e.target.value)}
+                className="h-11 w-full rounded-md border border-border bg-muted/20 px-4 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-border transition appearance-none cursor-pointer"
+              >
+                <option value="General Feedback">💬 General Feedback</option>
+                <option value="Bug Report">🐛 Bug Report</option>
+                <option value="Feature Request">✨ Feature Request</option>
+              </select>
               <textarea
                 name="message"
                 placeholder="Your message..."

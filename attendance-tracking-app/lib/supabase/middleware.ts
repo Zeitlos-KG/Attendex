@@ -39,6 +39,10 @@ export async function updateSession(request: NextRequest) {
     const protectedRoutes = ['/dashboard', '/timetable', '/mark-attendance', '/analytics', '/profile']
     const isProtectedRoute = protectedRoutes.some(route => request.nextUrl.pathname.startsWith(route))
 
+    // Allow guest users through protected routes (they only see mock data)
+    const isGuest = request.cookies.get('guest_mode')?.value === '1'
+    if (isProtectedRoute && isGuest) return supabaseResponse
+
     if (isProtectedRoute && !user) {
         const url = request.nextUrl.clone()
         url.pathname = '/'

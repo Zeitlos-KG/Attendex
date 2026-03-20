@@ -12,6 +12,8 @@ import {
   Calendar,
   Target,
 } from "lucide-react"
+import { useGuestMode } from "@/lib/guest-context"
+import { GUEST_ANALYTICS } from "@/lib/guest-data"
 
 interface DailyAttendanceData {
   date: string
@@ -202,6 +204,7 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedSubject, setSelectedSubject] = useState<number | null>(null)
+  const { isGuest } = useGuestMode()
 
   function calculateDailyAttendance(attendance: any[], days: number): DailyAttendanceData[] {
     const today = new Date()
@@ -232,6 +235,30 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     async function fetchData() {
+      // Guest mode: use real 1A11 demo analytics
+      if (isGuest) {
+        const guestSubjectData = GUEST_ANALYTICS.subjects.map(subj => {
+          let status = 'safe'
+          if (subj.percentage < 75) status = 'danger'
+          else if (subj.percentage < 80) status = 'warning'
+          return {
+            id: subj.id,
+            name: subj.name,
+            code: subj.code,
+            attendance: subj.percentage,
+            totalClasses: subj.total_weight,
+            attended: subj.attended_weight,
+            missed: subj.total_weight - subj.attended_weight,
+            trend: 0,
+            status,
+          }
+        })
+        setSubjectData(guestSubjectData)
+        setDailyData(calculateDailyAttendance(GUEST_ANALYTICS.attendance_history, 14))
+        setLoading(false)
+        return
+      }
+
       try {
         const subgroup = await getNormalizedSubgroup()
         if (!subgroup) {
@@ -270,7 +297,7 @@ export default function AnalyticsPage() {
       }
     }
     fetchData()
-  }, [])
+  }, [isGuest])
 
   const overallAttendance = subjectData.length > 0
     ? Math.round(subjectData.reduce((acc, s) => acc + s.attendance, 0) / subjectData.length)

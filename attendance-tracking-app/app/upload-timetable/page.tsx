@@ -115,7 +115,7 @@ export default function ExcelUploadPage() {
         window.URL.revokeObjectURL(url)
     }
 
-    const availableSubgroups = year ? subgroups[year as keyof typeof subgroups] || [] : []
+    const availableSubgroups = year ? subgroups[Number(year) as keyof typeof subgroups] || [] : []
 
     return (
         <div className="min-h-screen bg-background">
